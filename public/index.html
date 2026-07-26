@@ -12,7 +12,7 @@
   <header>
     <div class="eyebrow">2–4 graczy albo gra z komputerem</div>
     <h1>🍽️ Licytacja Smaków</h1>
-    <p>20 dań, ukryte budżety przeciwników i tylko 10 sekund na każdą decyzję.</p>
+    <p>Każdy gracz może zdobyć maksymalnie 5 dań. Liczba dań dopasowuje się automatycznie do liczby uczestników.</p>
   </header>
 
   <p id="autoJoinInfo" class="auto-join-info hidden">Dołączanie do pokoju…</p>
@@ -37,10 +37,7 @@
           <option value="bot">Z komputerem</option>
         </select>
       </label>
-      <div class="two">
-        <label>Budżet<input id="budget" type="number" min="20" max="1000" value="100"></label>
-        <label>Liczba dań<input id="rounds" type="number" min="5" max="20" value="20"></label>
-      </div>
+      <label>Budżet<input id="budget" type="number" min="20" max="1000" value="100"></label>
       <label id="maxPlayersLabel">Maksymalna liczba graczy
         <select id="maxPlayers">
           <option value="2">2 graczy</option>

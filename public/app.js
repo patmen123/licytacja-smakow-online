@@ -141,6 +141,7 @@ function renderPlayers(state) {
       <div class="presence ${player.connected ? "online" : "offline"}">
         ● ${player.isBot ? "komputer" : player.connected ? "online" : "rozłączony"}
         ${state.passed[index] ? " · pas" : ""}
+        · dania ${player.items.length}/${state.maxDishesPerPlayer}
       </div>
       <div class="items">
         ${player.items.length
@@ -267,7 +268,6 @@ $("createBtn").addEventListener("click", () => {
     name: $("hostName").value,
     mode: $("gameMode").value,
     budget: Number($("budget").value),
-    rounds: Number($("rounds").value),
     maxPlayers: Number($("maxPlayers").value),
     botCount: Number($("botCount").value)
   });
