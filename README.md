@@ -91,3 +91,8 @@ Na telefonach:
 - Gracz z zerowym budżetem nie jest już liczony jako osoba mogąca zdobywać kolejne dania.
 - Rozłączony gracz również nie blokuje automatycznego przydzielenia pozostałych dań.
 - Gdy zostanie tylko jeden aktywny gracz z monetami i wolnymi miejscami, otrzymuje pozostałe dania za 0 monet, aż osiągnie 5/5.
+
+
+## Poprawka wersji 14
+
+Po zakończeniu każdej licytacji gra najpierw sprawdza, czy został tylko jeden aktywny gracz z monetami i wolnymi miejscami. Jeżeli tak, dostaje on pozostałe dania za 0 monet aż do 5/5. Dopiero później sprawdzany jest warunek zakończenia gry z powodu braku monet.

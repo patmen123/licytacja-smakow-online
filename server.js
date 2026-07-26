@@ -447,17 +447,17 @@ function resolveAuction(room) {
 
   emitState(room);
 
-  if (shouldFinishForBankruptcy(room)) {
-    setTimeout(() => {
-      if (rooms.get(room.code) === room && room.status === "playing") {
-        finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
-      }
-    }, 1300);
-    return;
-  }
-
   setTimeout(() => {
-    if (rooms.get(room.code) === room && room.status === "playing") beginNextRound(room);
+    if (rooms.get(room.code) !== room || room.status !== "playing") return;
+
+    if (assignRemainingDishesIfOnlyOneHasSlots(room)) return;
+
+    if (shouldFinishForBankruptcy(room)) {
+      finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
+      return;
+    }
+
+    beginNextRound(room);
   }, 1300);
 }
 
