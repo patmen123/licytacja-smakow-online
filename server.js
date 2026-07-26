@@ -181,7 +181,11 @@ function hasFreeDishSlot(player) {
 function playersWithFreeSlots(room) {
   return room.players
     .map((player, index) => ({ player, index }))
-    .filter(({ player }) => hasFreeDishSlot(player));
+    .filter(({ player }) =>
+      hasFreeDishSlot(player) &&
+      player.budget > 0 &&
+      (player.isBot || player.socketId)
+    );
 }
 
 function assignRemainingDishesIfOnlyOneHasSlots(room) {
@@ -200,7 +204,7 @@ function assignRemainingDishesIfOnlyOneHasSlots(room) {
   room.round += remaining.length;
   finishGame(
     room,
-    `${player.name} jako jedyny miał wolne miejsca i otrzymał pozostałe ${remaining.length} dania.`
+    `${player.name} jako jedyny aktywny gracz miał wolne miejsca i otrzymał ${remaining.length} darmowych dań do kompletu 5.`
   );
   return true;
 }

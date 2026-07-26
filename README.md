@@ -84,3 +84,10 @@ Na telefonach:
 - Usunięto ręczny wybór liczby dań.
 - Gracz z kompletem 5 dań jest pomijany w kolejnych licytacjach.
 - Jeżeli tylko jedna osoba ma jeszcze wolne miejsca, pozostałe dania są jej przyznawane bez licytacji, aż zapełni 5 miejsc.
+
+
+## Poprawka wersji 13
+
+- Gracz z zerowym budżetem nie jest już liczony jako osoba mogąca zdobywać kolejne dania.
+- Rozłączony gracz również nie blokuje automatycznego przydzielenia pozostałych dań.
+- Gdy zostanie tylko jeden aktywny gracz z monetami i wolnymi miejscami, otrzymuje pozostałe dania za 0 monet, aż osiągnie 5/5.
