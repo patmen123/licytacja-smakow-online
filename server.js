@@ -170,11 +170,40 @@ function attachPlayer(socket, room, index) {
   socket.join(room.code);
 }
 
+
+function playersWithMoney(room) {
+  return room.players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => player.budget > 0);
+}
+
+function shouldFinishForBankruptcy(room) {
+  return playersWithMoney(room).length <= 1;
+}
+
+function finishGame(room, message = "Koniec gry — poznajemy Największego Obżartucha!") {
+  clearTurnTimer(room);
+  room.status = "finished";
+  room.currentBid = 0;
+  room.leader = null;
+  room.turnEndsAt = null;
+  room.message = message;
+  emitState(room);
+}
+
+function markBankruptPlayersPassed(room) {
+  room.players.forEach((player, index) => {
+    if (player.budget <= 0) room.passed[index] = true;
+  });
+}
+
 function nextActiveIndex(room, afterIndex, excludeLeader = true) {
   const count = room.players.length;
   for (let step = 1; step <= count; step++) {
     const index = (afterIndex + step) % count;
     if (room.passed[index]) continue;
+    if (room.players[index].budget <= 0) continue;
+    if (!room.players[index].isBot && !room.players[index].socketId) continue;
     if (excludeLeader && index === room.leader) continue;
     return index;
   }
@@ -182,9 +211,16 @@ function nextActiveIndex(room, afterIndex, excludeLeader = true) {
 }
 
 function autoPassUnablePlayers(room) {
-  if (room.leader === null) return;
   room.players.forEach((player, index) => {
-    if (index !== room.leader && player.budget <= room.currentBid) {
+    if (player.budget <= 0) {
+      room.passed[index] = true;
+      return;
+    }
+    if (!player.isBot && !player.socketId) {
+      room.passed[index] = true;
+      return;
+    }
+    if (room.leader !== null && index !== room.leader && player.budget <= room.currentBid) {
       room.passed[index] = true;
     }
   });
@@ -297,27 +333,45 @@ function startGame(room, isRematch = false) {
   room.currentBid = 0;
   room.leader = null;
   room.passed = room.players.map(() => false);
-  const starting = 0;
+  markBankruptPlayersPassed(room);
+  const starting = nextActiveIndex(room, room.players.length - 1, false);
+
+  if (starting === null || shouldFinishForBankruptcy(room)) {
+    finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
+    return;
+  }
+
   room.message = `${room.players[starting].name} rozpoczyna licytację.`;
   setTurn(room, starting);
 }
 
 function beginNextRound(room) {
+  if (shouldFinishForBankruptcy(room)) {
+    finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
+    return;
+  }
+
   room.round += 1;
   if (room.round >= room.items.length) {
-    clearTurnTimer(room);
-    room.status = "finished";
-    room.currentBid = 0;
-    room.leader = null;
-    room.message = "Koniec gry — poznajemy Największego Obżartucha!";
-    emitState(room);
+    finishGame(room);
     return;
   }
 
   room.currentBid = 0;
   room.leader = null;
   room.passed = room.players.map(() => false);
-  const starting = room.round % room.players.length;
+  markBankruptPlayersPassed(room);
+
+  const preferredStart = room.round % room.players.length;
+  const starting = room.players[preferredStart].budget > 0
+    ? preferredStart
+    : nextActiveIndex(room, preferredStart, false);
+
+  if (starting === null) {
+    finishGame(room, "Gra zakończona — nikt nie ma monet na dalszą licytację.");
+    return;
+  }
+
   room.message = `${room.players[starting].name} rozpoczyna kolejną licytację.`;
   setTurn(room, starting);
 }
@@ -335,6 +389,16 @@ function resolveAuction(room) {
   }
 
   emitState(room);
+
+  if (shouldFinishForBankruptcy(room)) {
+    setTimeout(() => {
+      if (rooms.get(room.code) === room && room.status === "playing") {
+        finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
+      }
+    }, 1300);
+    return;
+  }
+
   setTimeout(() => {
     if (rooms.get(room.code) === room && room.status === "playing") beginNextRound(room);
   }, 1300);
@@ -424,6 +488,15 @@ io.on("connection", socket => {
     const room = rooms.get(code);
     if (!room) return sendError(socket, "Nie znaleziono pokoju o takim kodzie.");
     if (room.mode !== "online") return sendError(socket, "To jest pokój gry z komputerem.");
+
+    if (room.status === "finished") {
+      room.players = room.players.filter(player => player.isBot || player.socketId);
+      room.passed = room.players.map(() => false);
+      room.hostIndex = 0;
+      room.status = "waiting";
+      room.message = "Pokój jest ponownie otwarty. Czekamy na graczy.";
+    }
+
     if (room.status !== "waiting") return sendError(socket, "Ta gra już się rozpoczęła.");
     if (room.players.length >= room.maxPlayers) return sendError(socket, "Pokój jest już pełny.");
 
@@ -541,7 +614,12 @@ io.on("connection", socket => {
 
     attachPlayer(socket, room, index);
     socket.emit("reconnected-player", { code, playerIndex: index });
-    room.message = `${room.players[index].name} wrócił do gry.`;
+
+    if (room.status === "playing") {
+      room.message = `${room.players[index].name} wrócił do gry i dołączy od następnej licytacji.`;
+    } else {
+      room.message = `${room.players[index].name} wrócił do gry.`;
+    }
     emitState(room);
   });
 
@@ -585,9 +663,19 @@ io.on("connection", socket => {
     const { room, index } = found;
     if (room.players[index].socketId === socket.id) {
       room.players[index].socketId = null;
-      room.message = `${room.players[index].name} stracił połączenie.`;
-      if (room.status === "playing" && room.turn === index) handlePass(room, index, true);
-      else emitState(room);
+      room.message = `${room.players[index].name} stracił połączenie i będzie pomijany.`;
+
+      if (room.status === "playing") {
+        room.passed[index] = true;
+        if (room.turn === index) {
+          handlePass(room, index, true);
+        } else {
+          autoPassUnablePlayers(room);
+          emitState(room);
+        }
+      } else {
+        emitState(room);
+      }
     }
   });
 });

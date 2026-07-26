@@ -53,3 +53,22 @@ Na telefonach:
 - karty graczy są mniejsze i przewijane poziomo,
 - budżety przeciwników pozostają ukryte,
 - przyciski licytacji są większe i łatwiejsze do naciskania.
+
+
+## Poprawki wersji 10
+
+- Każda osoba dołączająca przez link najpierw wpisuje własną nazwę gracza.
+- Nazwa nie jest już automatycznie ustawiana jako „Gracz 2”.
+- Gracze z zerowym budżetem nie otrzymują kolejnych tur.
+- Jeżeli tylko jeden gracz ma jeszcze monety, gra kończy się natychmiast.
+- Dotyczy to również rozgrywek dla 3 i 4 osób oraz gry z komputerami.
+
+
+## Poprawki wersji 11
+
+- Rozłączony gracz jest automatycznie pomijany w kolejce.
+- Jeżeli rozłączy się podczas swojej tury, serwer automatycznie wybiera pas.
+- Po ponownym połączeniu wraca do gry od kolejnej licytacji.
+- Po zakończeniu gry pokój może zostać ponownie otwarty.
+- Nowy gracz może wejść do zakończonego pokoju, jeżeli jest wolne miejsce.
+- Rozłączeni uczestnicy poprzedniej gry są usuwani przy ponownym otwieraniu pokoju.
