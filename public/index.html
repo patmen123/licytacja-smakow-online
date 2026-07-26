@@ -31,6 +31,16 @@
     <div>
       <h2>Utwórz grę</h2>
       <label>Twoje imię<input id="hostName" maxlength="18" value="Gracz 1"></label>
+
+      <label>Kategoria licytacji
+        <select id="auctionCategory">
+          <option value="mixed">Miks wszystkiego</option>
+          <option value="main">Dania główne</option>
+          <option value="dessert">Desery</option>
+          <option value="drink">Napoje</option>
+          <option value="snack">Przekąski</option>
+        </select>
+      </label>
       <label>Tryb gry
         <select id="gameMode">
           <option value="online">Online — 2 do 4 graczy</option>
@@ -123,6 +133,7 @@
   <section id="resultsScreen" class="card center hidden">
     <div class="eyebrow">Koniec gry</div>
     <h2 id="winner"></h2>
+    <div id="podium" class="podium"></div>
     <div id="results" class="results"></div>
     <div class="result-actions">
       <button id="rematchBtn" class="primary">Zagraj ponownie</button>

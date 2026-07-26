@@ -198,24 +198,39 @@ function renderGame(state) {
 
 function renderResults(state) {
   show("resultsScreen");
+
   const ranking = state.players
     .map((player, index) => ({ player, index }))
-    .sort((a, b) => b.player.score - a.player.score);
+    .sort((a, b) => {
+      if (b.player.score !== a.player.score) return b.player.score - a.player.score;
+      const aBudget = a.player.isYou ? a.player.budget : 0;
+      const bBudget = b.player.isYou ? b.player.budget : 0;
+      return bBudget - aBudget;
+    });
 
-  const topScore = ranking[0].player.score;
-  const top = ranking.filter(entry => entry.player.score === topScore);
-  const winnerIndex = top.length === 1 ? top[0].index : null;
+  const winnerIndex = ranking[0]?.index ?? null;
+  const winnerName = winnerIndex === null ? "" : state.players[winnerIndex].name;
 
-  $("winner").innerHTML = winnerIndex === null
-    ? "Remis największych obżartuchów! 🤝"
-    : `Największy obżartuch: ${state.players[winnerIndex].name}
-       <span class="dancing-pig" aria-label="Tańcząca świnka">🐷</span>`;
+  $("winner").innerHTML = `Największy obżartuch: ${winnerName}
+    <span class="dancing-pig" aria-label="Tańcząca świnka">🐷</span>`;
+
+  const podiumOrder = ranking.slice(0, 3);
+  const podiumClasses = ["first", "second", "third"];
+  const podiumLabels = ["🥇", "🥈", "🥉"];
+
+  $("podium").innerHTML = podiumOrder.map(({ player, index }, place) => `
+    <article class="podium-place ${podiumClasses[place]}">
+      <div class="podium-medal">${podiumLabels[place]}</div>
+      <div class="podium-avatar">${index === winnerIndex ? '<span class="dancing-pig">🐷</span>' : player.isBot ? "🤖" : "👤"}</div>
+      <h3>${player.name}${player.isYou ? " (Ty)" : ""}</h3>
+      <strong>${player.score} pkt</strong>
+      <span>${player.items.length}/5 dań</span>
+    </article>
+  `).join("");
 
   $("results").innerHTML = ranking.map(({ player, index }, place) => `
     <article class="result ${index === winnerIndex ? "winner-result" : ""}">
-      <h3>${place + 1}. ${player.isBot ? "🤖 " : ""}${player.name}${player.isYou ? " (Ty)" : ""}
-        ${index === winnerIndex ? '<span class="dancing-pig small-pig">🐷</span>' : ""}
-      </h3>
+      <h3>${place + 1}. ${player.isBot ? "🤖 " : ""}${player.name}${player.isYou ? " (Ty)" : ""}</h3>
       <p><strong>${player.score} punktów</strong>${player.isYou ? ` · zostało ${player.budget} monet` : ""}</p>
       ${player.items.length
         ? player.items.map(item => `<div class="result-line"><span>${item.emoji} ${item.name}</span><span>${item.value} pkt · ${item.price} 🪙</span></div>`).join("")
@@ -267,6 +282,7 @@ $("createBtn").addEventListener("click", () => {
   socket.emit("create-room", {
     name: $("hostName").value,
     mode: $("gameMode").value,
+    category: $("auctionCategory").value,
     budget: Number($("budget").value),
     maxPlayers: Number($("maxPlayers").value),
     botCount: Number($("botCount").value)
