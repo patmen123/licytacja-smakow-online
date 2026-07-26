@@ -12,6 +12,7 @@ Gra internetowa dla dwóch osób. Gracze mogą korzystać z różnych urządzeń
 - synchronizacja licytacji w czasie rzeczywistym,
 - serwer kontrolujący kolejność, budżety i wyniki,
 - automatyczny powrót do gry po chwilowym rozłączeniu,
+- rewanż w tym samym pokoju bez tworzenia nowego kodu,
 - losowe potrawy i ukryte punkty,
 - responsywny wygląd na telefonie i komputerze.
 
@@ -66,3 +67,14 @@ Przykłady:
 - jedna osoba wybiera go jako ulubiony: 8 punktów,
 - jedna osoba go lubi, a druga nie lubi: 6 punktów,
 - oboje wybierają go jako najmniej lubiany: 1 punkt.
+
+
+## Rewanż
+
+Po zakończeniu gry obaj gracze mogą kliknąć **Zagraj ponownie**. Gdy obie osoby są gotowe:
+
+- pokój i kod pozostają bez zmian,
+- budżety wracają do wartości początkowej,
+- zdobyte potrawy są zerowane,
+- losowana jest nowa kolejność potraw,
+- zachowywane są odpowiedzi z quizu smaków.

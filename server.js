@@ -98,6 +98,7 @@ function publicState(room, viewerIndex = null) {
       })),
       score: ended ? player.items.reduce((sum, item) => sum + item.value, 0) : null,
       quizSubmitted: Boolean(player.quiz),
+      rematchReady: Boolean(player.rematchReady),
       isYou: index === viewerIndex
     }) : null)
   };
@@ -127,6 +128,9 @@ function roomForSocket(socket) {
 }
 
 function startGame(room) {
+  room.players.forEach(player => {
+    if (player) player.rematchReady = false;
+  });
   room.status = "playing";
   room.round = 0;
   room.turn = 0;
@@ -134,6 +138,29 @@ function startGame(room) {
   room.leader = null;
   room.passed = [false, false];
   room.message = `${room.players[0].name} rozpoczyna licytację.`;
+  emitState(room);
+}
+
+
+function resetForRematch(room) {
+  const rounds = room.items.length;
+  const budget = room.players[0].initialBudget;
+
+  room.items = shuffledFoods(rounds);
+  applyQuizScores(room);
+  room.players.forEach(player => {
+    player.budget = budget;
+    player.items = [];
+    player.rematchReady = false;
+  });
+
+  room.round = 0;
+  room.turn = 0;
+  room.currentBid = 0;
+  room.leader = null;
+  room.passed = [false, false];
+  room.status = "playing";
+  room.message = `${room.players[0].name} rozpoczyna rewanż.`;
   emitState(room);
 }
 
@@ -215,6 +242,7 @@ io.on("connection", socket => {
           initialBudget: budget,
           items: [],
           quiz: null,
+          rematchReady: false,
           token: playerToken,
           socketId: null,
           disconnectedAt: null
@@ -242,6 +270,7 @@ io.on("connection", socket => {
       initialBudget: room.players[0].initialBudget,
       items: [],
       quiz: null,
+      rematchReady: false,
       token: playerToken,
       socketId: null,
       disconnectedAt: null
@@ -361,6 +390,28 @@ io.on("connection", socket => {
     emitState(room);
   });
 
+
+
+  socket.on("request-rematch", () => {
+    const found = roomForSocket(socket);
+    if (!found) return sendError(socket, "Nie jesteś przypisany do aktywnej gry.");
+
+    const { room, index } = found;
+    if (room.status !== "finished") {
+      return sendError(socket, "Rewanż można rozpocząć dopiero po zakończeniu gry.");
+    }
+
+    room.players[index].rematchReady = true;
+    const readyCount = room.players.filter(player => player?.rematchReady).length;
+
+    if (readyCount === 2) {
+      resetForRematch(room);
+      return;
+    }
+
+    room.message = `${room.players[index].name} chce zagrać ponownie. Czekamy na drugiego gracza.`;
+    emitState(room);
+  });
 
   socket.on("leave-room", () => {
     const found = roomForSocket(socket);
