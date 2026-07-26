@@ -8,121 +8,125 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <main class="shell">
-    <header>
-      <div class="eyebrow">Gra online dla dwóch osób</div>
-      <h1>🍽️ Licytacja Smaków</h1>
-      <p>Utwórz pokój, wyślij kod drugiej osobie i licytujcie jedzenie na żywo — nawet z różnych sieci.</p>
-    </header>
+<main class="shell">
+  <header>
+    <div class="eyebrow">2–4 graczy albo gra z komputerem</div>
+    <h1>🍽️ Licytacja Smaków</h1>
+    <p>20 dań, ukryte budżety przeciwników i tylko 10 sekund na każdą decyzję.</p>
+  </header>
 
-    <p id="autoJoinInfo" class="auto-join-info hidden">Dołączanie do pokoju…</p>
+  <p id="autoJoinInfo" class="auto-join-info hidden">Dołączanie do pokoju…</p>
 
-    <section id="home" class="card home-grid">
-      <div>
-        <h2>Utwórz pokój</h2>
-        <label>Twoje imię<input id="hostName" maxlength="18" value="Gracz 1"></label>
-        <div class="two">
-          <label>Budżet<input id="budget" type="number" min="20" max="1000" value="100"></label>
-          <label>Rundy<input id="rounds" type="number" min="3" max="12" value="10"></label>
+  <section id="home" class="card home-grid">
+    <div>
+      <h2>Utwórz grę</h2>
+      <label>Twoje imię<input id="hostName" maxlength="18" value="Gracz 1"></label>
+      <label>Tryb gry
+        <select id="gameMode">
+          <option value="online">Online — 2 do 4 graczy</option>
+          <option value="bot">Z komputerem</option>
+        </select>
+      </label>
+      <div class="two">
+        <label>Budżet<input id="budget" type="number" min="20" max="1000" value="100"></label>
+        <label>Liczba dań<input id="rounds" type="number" min="5" max="20" value="20"></label>
+      </div>
+      <label id="maxPlayersLabel">Maksymalna liczba graczy
+        <select id="maxPlayers">
+          <option value="2">2 graczy</option>
+          <option value="3">3 graczy</option>
+          <option value="4" selected>4 graczy</option>
+        </select>
+      </label>
+      <label id="botCountLabel" class="hidden">Liczba komputerów
+        <select id="botCount">
+          <option value="1">1 komputer</option>
+          <option value="2">2 komputery</option>
+          <option value="3">3 komputery</option>
+        </select>
+      </label>
+      <button id="createBtn" class="primary">Utwórz grę</button>
+    </div>
+
+    <div class="divider"><span>lub</span></div>
+
+    <div>
+      <h2>Dołącz do pokoju</h2>
+      <label>Twoje imię<input id="guestName" maxlength="18" value="Gracz 2"></label>
+      <label>Kod pokoju<input id="roomCode" maxlength="6" autocomplete="off" placeholder="np. KOT728"></label>
+      <button id="joinBtn" class="secondary">Dołącz</button>
+    </div>
+  </section>
+
+  <section id="waiting" class="card center hidden">
+    <div class="loader">🍕</div>
+    <h2>Pokój <span id="waitingCode"></span></h2>
+    <p id="waitingPlayers"></p>
+    <div id="waitingList" class="waiting-list"></div>
+    <button id="shareBtn" class="primary">Skopiuj link zaproszenia</button>
+    <button id="startRoomBtn" class="primary hidden">Rozpocznij grę</button>
+    <button id="leaveWaitingBtn" class="danger">Opuść pokój</button>
+    <p class="muted">Gospodarz może rozpocząć po dołączeniu minimum 2 osób.</p>
+  </section>
+
+  <section id="quizScreen" class="card quiz-screen hidden">
+    <div class="eyebrow">Quiz smaków</div>
+    <h2>Wybierz swoje preferencje</h2>
+    <p>Wskaż dokładnie 3 ulubione i 3 najmniej lubiane dania. Odpowiedzi wszystkich graczy ustalą ukryte punkty.</p>
+    <div class="quiz-columns">
+      <div><h3>😍 Ulubione <span id="favCount">0/3</span></h3><div id="favoriteChoices" class="choice-grid"></div></div>
+      <div><h3>😖 Najmniej lubiane <span id="dislikeCount">0/3</span></h3><div id="dislikeChoices" class="choice-grid"></div></div>
+    </div>
+    <button id="submitQuizBtn" class="primary">Zatwierdź odpowiedzi</button>
+    <button id="leaveQuizBtn" class="danger">Opuść pokój</button>
+    <p id="quizWaiting" class="muted hidden">Gotowe. Czekamy na pozostałych graczy…</p>
+  </section>
+
+  <section id="game" class="hidden">
+    <div class="statusbar">
+      <span>Pokój <strong id="gameCode"></strong></span>
+      <div class="status-actions"><span id="connection">Połączono</span><button id="leaveGameBtn" class="danger compact">Opuść grę</button></div>
+    </div>
+
+    <div id="playersGrid" class="players-grid"></div>
+
+    <article class="card auction">
+      <div id="mobileOwnMoney" class="mobile-own-money hidden">0 🪙</div>
+      <div id="roundLabel" class="eyebrow"></div>
+      <div id="foodEmoji" class="food">🍕</div>
+      <h2 id="foodName"></h2>
+      <div class="bid-label">Aktualna oferta</div>
+      <div id="currentBid" class="big-bid">0 🪙</div>
+      <div class="timer-wrap"><div id="timerBar" class="timer-bar"></div></div>
+      <div id="timerText" class="timer-text">10,0 s</div>
+      <div id="turnLabel" class="turn"></div>
+      <div id="controls" class="controls">
+        <div class="bid-row">
+          <input id="bidAmount" type="number" min="1" step="1" inputmode="numeric">
+          <button id="bidBtn" class="primary">Licytuj</button>
         </div>
-        <button id="createBtn" class="primary">Utwórz grę</button>
+        <button id="passBtn" class="secondary">Pasuję</button>
       </div>
-      <div class="divider"><span>lub</span></div>
-      <div>
-        <h2>Dołącz do gry</h2>
-        <label>Twoje imię<input id="guestName" maxlength="18" value="Gracz 2"></label>
-        <label>Kod pokoju<input id="roomCode" maxlength="6" autocomplete="off" placeholder="np. KOT728"></label>
-        <button id="joinBtn" class="secondary">Dołącz</button>
-      </div>
-    </section>
+      <p id="spectatorNote" class="muted hidden"></p>
+    </article>
 
-    <section id="waiting" class="card center hidden">
-      <div class="loader">🍕</div>
-      <h2>Pokój gotowy</h2>
-      <p>Wyślij ten kod drugiemu graczowi:</p>
-      <button id="codeButton" class="room-code" title="Kliknij, aby skopiować"></button>
-      <button id="shareBtn" class="primary">Skopiuj link zaproszenia</button>
-      <button id="leaveWaitingBtn" class="danger">Anuluj pokój i wróć</button>
-      <p class="muted">Gra rozpocznie się automatycznie, gdy druga osoba dołączy.</p>
-    </section>
+    <div id="message" class="card message"></div>
+  </section>
 
+  <section id="resultsScreen" class="card center hidden">
+    <div class="eyebrow">Koniec gry</div>
+    <h2 id="winner"></h2>
+    <div id="results" class="results"></div>
+    <div class="result-actions">
+      <button id="rematchBtn" class="primary">Zagraj ponownie</button>
+      <button id="leaveAfterGameBtn" class="danger">Opuść pokój</button>
+    </div>
+    <p id="rematchWaiting" class="muted hidden">Czekamy na pozostałych graczy…</p>
+  </section>
 
-    <section id="quizScreen" class="card quiz-screen hidden">
-      <div class="eyebrow">Quiz smaków</div>
-      <h2>Co lubisz najbardziej?</h2>
-      <p>Wybierz dokładnie 3 ulubione i 3 najmniej lubiane potrawy. Odpowiedzi obu graczy ustalą ukryte punkty produktów.</p>
-      <div class="quiz-columns">
-        <div>
-          <h3>😍 Ulubione <span id="favCount">0/3</span></h3>
-          <div id="favoriteChoices" class="choice-grid"></div>
-        </div>
-        <div>
-          <h3>😖 Najmniej lubiane <span id="dislikeCount">0/3</span></h3>
-          <div id="dislikeChoices" class="choice-grid"></div>
-        </div>
-      </div>
-      <button id="submitQuizBtn" class="primary">Zatwierdź odpowiedzi</button>
-      <button id="leaveQuizBtn" class="danger">Opuść pokój</button>
-      <p id="quizWaiting" class="muted hidden">Odpowiedzi zapisane. Czekamy na drugiego gracza…</p>
-    </section>
-
-    <section id="game" class="hidden">
-      <div class="statusbar">
-        <span>Pokój <strong id="gameCode"></strong></span>
-        <div class="status-actions">
-          <span id="connection">Połączono</span>
-          <button id="leaveGameBtn" class="danger compact">Opuść grę</button>
-        </div>
-      </div>
-
-      <div class="game-grid">
-        <article id="player0" class="card player">
-          <div class="player-head"><h2 id="name0"></h2><strong id="money0"></strong></div>
-          <div id="online0" class="presence"></div>
-          <div id="items0" class="items"></div>
-        </article>
-
-        <article class="card auction">
-          <div id="roundLabel" class="eyebrow"></div>
-          <div id="foodEmoji" class="food">🍕</div>
-          <h2 id="foodName"></h2>
-          <div class="bid-label">Aktualna oferta</div>
-          <div id="currentBid" class="big-bid">0 🪙</div>
-          <div id="turnLabel" class="turn"></div>
-          <div id="controls" class="controls">
-            <div class="bid-row">
-              <input id="bidAmount" type="number" min="1" step="1" inputmode="numeric">
-              <button id="bidBtn" class="primary">Licytuj</button>
-            </div>
-            <button id="passBtn" class="secondary">Pasuję</button>
-          </div>
-          <p id="spectatorNote" class="muted hidden">Czekasz na ruch drugiego gracza.</p>
-        </article>
-
-        <article id="player1" class="card player">
-          <div class="player-head"><h2 id="name1"></h2><strong id="money1"></strong></div>
-          <div id="online1" class="presence"></div>
-          <div id="items1" class="items"></div>
-        </article>
-      </div>
-      <div id="message" class="card message"></div>
-    </section>
-
-    <section id="resultsScreen" class="card center hidden">
-      <div class="eyebrow">Koniec gry</div>
-      <h2 id="winner"></h2>
-      <div id="results" class="results"></div>
-      <div class="result-actions">
-        <button id="rematchBtn" class="primary">Zagraj ponownie</button>
-        <button id="leaveAfterGameBtn" class="danger">Opuść pokój</button>
-      </div>
-      <p id="rematchWaiting" class="muted hidden">Czekamy, aż drugi gracz wybierze rewanż…</p>
-    </section>
-
-    <div id="toast" class="toast hidden"></div>
-  </main>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/app.js"></script>
+  <div id="toast" class="toast hidden"></div>
+</main>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>
