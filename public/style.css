@@ -25,3 +25,13 @@ button{border:0;border-radius:14px;padding:13px 17px;font-weight:900;cursor:poin
 @media(max-width:430px){.choice-grid{grid-template-columns:1fr}}
 
 .result-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+
+.dancing-pig{display:inline-block;margin-left:.2em;transform-origin:50% 100%;animation:pig-dance .7s ease-in-out infinite alternate}
+.small-pig{font-size:1.15em}
+.winner-result{outline:3px solid rgba(249,115,22,.28);background:#fff7ed}
+.auto-join-info{max-width:720px;margin:0 auto 16px;padding:12px 16px;text-align:center;border:1px solid var(--border);border-radius:14px;background:#fffaf5;color:var(--dark);font-weight:800}
+@keyframes pig-dance{
+  0%{transform:translateY(0) rotate(-12deg) scale(1)}
+  50%{transform:translateY(-7px) rotate(0deg) scale(1.08)}
+  100%{transform:translateY(0) rotate(12deg) scale(1)}
+}

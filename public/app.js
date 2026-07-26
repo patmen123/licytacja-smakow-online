@@ -5,6 +5,7 @@ const $ = id => document.getElementById(id);
 let latestState = null;
 let quizSelections = { favorites: new Set(), dislikes: new Set() };
 let session = JSON.parse(localStorage.getItem("foodAuctionSession") || "null");
+let autoJoinAttempted = false;
 
 function show(screen) {
   ["home", "waiting", "quizScreen", "game", "resultsScreen"].forEach(id => $(id).classList.toggle("hidden", id !== screen));
@@ -35,6 +36,21 @@ function returnToMenu() {
   history.replaceState({}, "", location.pathname);
   $("bidAmount").value = "";
   show("home");
+}
+
+
+function tryAutoJoinFromLink() {
+  const room = new URLSearchParams(location.search).get("room");
+  if (!room || session || autoJoinAttempted || !socket.connected) return;
+
+  autoJoinAttempted = true;
+  $("autoJoinInfo").classList.remove("hidden");
+  $("autoJoinInfo").textContent = `Dołączanie do pokoju ${room.toUpperCase()}…`;
+
+  socket.emit("join-room", {
+    name: $("guestName").value || "Gracz 2",
+    code: room.toUpperCase()
+  });
 }
 
 function inviteLink(code) {
@@ -128,7 +144,7 @@ function render(state) {
   state.players.forEach((player, index) => {
     if (!player) return;
     $(`name${index}`).textContent = player.name + (player.isYou ? " (Ty)" : "");
-    $(`money${index}`).textContent = `${player.budget} 🪙`;
+    $(`money${index}`).textContent = player.isYou ? `${player.budget} 🪙` : "Monety ukryte";
     $(`online${index}`).innerHTML = player.connected
       ? '<span class="online">● online</span>'
       : '<span class="offline">● rozłączony</span>';
@@ -151,18 +167,33 @@ function render(state) {
 function renderResults(state) {
   show("resultsScreen");
   const scores = state.players.map(p => p.score);
-  let winner;
+
+  let winnerIndex = null;
+  let winnerText;
+
   if (scores[0] === scores[1]) {
-    if (state.players[0].budget === state.players[1].budget) winner = "Remis! 🤝";
-    else winner = `Wygrywa ${state.players[state.players[0].budget > state.players[1].budget ? 0 : 1].name}! 🏆`;
+    if (state.players[0].budget === state.players[1].budget) {
+      winnerText = "Remis! 🤝";
+    } else {
+      winnerIndex = state.players[0].budget > state.players[1].budget ? 0 : 1;
+      winnerText = `Największy obżartuch: ${state.players[winnerIndex].name}`;
+    }
   } else {
-    winner = `Wygrywa ${state.players[scores[0] > scores[1] ? 0 : 1].name}! 🏆`;
+    winnerIndex = scores[0] > scores[1] ? 0 : 1;
+    winnerText = `Największy obżartuch: ${state.players[winnerIndex].name}`;
   }
-  $("winner").textContent = winner;
-  $("results").innerHTML = state.players.map(player => `
-    <article class="result">
-      <h3>${player.name}${player.isYou ? " (Ty)" : ""}</h3>
-      <p><strong>${player.score} punktów</strong> · zostało ${player.budget} monet</p>
+
+  $("winner").innerHTML = winnerIndex === null
+    ? winnerText
+    : `${winnerText} <span class="dancing-pig" aria-label="Tańcząca świnka">🐷</span>`;
+
+  $("results").innerHTML = state.players.map((player, index) => `
+    <article class="result ${index === winnerIndex ? "winner-result" : ""}">
+      <h3>
+        ${player.name}${player.isYou ? " (Ty)" : ""}
+        ${index === winnerIndex ? '<span class="dancing-pig small-pig" aria-label="Tańcząca świnka">🐷</span>' : ""}
+      </h3>
+      <p><strong>${player.score} punktów</strong>${player.isYou ? ` · zostało ${player.budget} monet` : ""}</p>
       ${player.items.length ? player.items.map(item =>
         `<div class="result-line"><span>${item.emoji} ${item.name}</span><span>${item.value} pkt · ${item.price} 🪙</span></div>`
       ).join("") : '<p class="muted">Brak zdobytych potraw</p>'}
@@ -227,9 +258,13 @@ socket.on("left-room", () => {
 });
 
 socket.on("room-created", saveSession);
-socket.on("room-joined", saveSession);
+socket.on("room-joined", data => {
+  $("autoJoinInfo").classList.add("hidden");
+  saveSession(data);
+});
 socket.on("state", render);
 socket.on("game-error", ({ message }) => {
+  $("autoJoinInfo").classList.add("hidden");
   toast(message);
   if (message.includes("nie istnieje") || message.includes("Nieprawidłowy")) {
     localStorage.removeItem("foodAuctionSession");
@@ -242,6 +277,8 @@ socket.on("connect", () => {
   $("connection").textContent = "Połączono";
   if (session?.code && session?.playerToken) {
     socket.emit("reconnect-player", session);
+  } else {
+    tryAutoJoinFromLink();
   }
 });
 socket.on("disconnect", () => {
@@ -251,4 +288,7 @@ socket.on("disconnect", () => {
 const roomFromLink = new URLSearchParams(location.search).get("room");
 if (roomFromLink && !session) {
   $("roomCode").value = roomFromLink.toUpperCase();
+  $("autoJoinInfo").classList.remove("hidden");
+  $("autoJoinInfo").textContent = `Przygotowanie do dołączenia do pokoju ${roomFromLink.toUpperCase()}…`;
+  tryAutoJoinFromLink();
 }
