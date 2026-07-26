@@ -8,6 +8,7 @@ const { Server } = require("socket.io");
 
 const PORT = process.env.PORT || 3000;
 const TURN_MS = 10_000;
+const MAX_DISHES_PER_PLAYER = 5;
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 
 const app = express();
@@ -95,6 +96,7 @@ function publicState(room, viewerIndex = null) {
     status: room.status,
     mode: room.mode,
     maxPlayers: room.maxPlayers,
+    maxDishesPerPlayer: MAX_DISHES_PER_PLAYER,
     hostIndex: room.hostIndex,
     viewerIndex,
     isHost: viewerIndex === room.hostIndex,
@@ -171,6 +173,38 @@ function attachPlayer(socket, room, index) {
 }
 
 
+
+function hasFreeDishSlot(player) {
+  return player.items.length < MAX_DISHES_PER_PLAYER;
+}
+
+function playersWithFreeSlots(room) {
+  return room.players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => hasFreeDishSlot(player));
+}
+
+function assignRemainingDishesIfOnlyOneHasSlots(room) {
+  const available = playersWithFreeSlots(room);
+  if (available.length !== 1) return false;
+
+  const { player, index } = available[0];
+  const needed = MAX_DISHES_PER_PLAYER - player.items.length;
+  if (needed <= 0) return false;
+
+  const remaining = room.items.slice(room.round, room.round + needed);
+  remaining.forEach(item => {
+    player.items.push({ ...item, price: 0 });
+  });
+
+  room.round += remaining.length;
+  finishGame(
+    room,
+    `${player.name} jako jedyny miał wolne miejsca i otrzymał pozostałe ${remaining.length} dania.`
+  );
+  return true;
+}
+
 function playersWithMoney(room) {
   return room.players
     .map((player, index) => ({ player, index }))
@@ -203,6 +237,7 @@ function nextActiveIndex(room, afterIndex, excludeLeader = true) {
     const index = (afterIndex + step) % count;
     if (room.passed[index]) continue;
     if (room.players[index].budget <= 0) continue;
+    if (!hasFreeDishSlot(room.players[index])) continue;
     if (!room.players[index].isBot && !room.players[index].socketId) continue;
     if (excludeLeader && index === room.leader) continue;
     return index;
@@ -212,7 +247,7 @@ function nextActiveIndex(room, afterIndex, excludeLeader = true) {
 
 function autoPassUnablePlayers(room) {
   room.players.forEach((player, index) => {
-    if (player.budget <= 0) {
+    if (player.budget <= 0 || !hasFreeDishSlot(player)) {
       room.passed[index] = true;
       return;
     }
@@ -341,11 +376,15 @@ function startGame(room, isRematch = false) {
     return;
   }
 
+  if (assignRemainingDishesIfOnlyOneHasSlots(room)) return;
+
   room.message = `${room.players[starting].name} rozpoczyna licytację.`;
   setTurn(room, starting);
 }
 
 function beginNextRound(room) {
+  if (assignRemainingDishesIfOnlyOneHasSlots(room)) return;
+
   if (shouldFinishForBankruptcy(room)) {
     finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
     return;
@@ -357,13 +396,17 @@ function beginNextRound(room) {
     return;
   }
 
+  if (assignRemainingDishesIfOnlyOneHasSlots(room)) return;
+
   room.currentBid = 0;
   room.leader = null;
   room.passed = room.players.map(() => false);
   markBankruptPlayersPassed(room);
 
   const preferredStart = room.round % room.players.length;
-  const starting = room.players[preferredStart].budget > 0
+  const starting = room.players[preferredStart].budget > 0 &&
+    hasFreeDishSlot(room.players[preferredStart]) &&
+    (room.players[preferredStart].isBot || room.players[preferredStart].socketId)
     ? preferredStart
     : nextActiveIndex(room, preferredStart, false);
 
@@ -383,6 +426,16 @@ function resolveAuction(room) {
   } else {
     const winner = room.players[room.leader];
     const item = room.items[room.round];
+
+    if (!hasFreeDishSlot(winner)) {
+      room.message = `${winner.name} ma już komplet 5 dań. Potrawa przepada.`;
+      emitState(room);
+      setTimeout(() => {
+        if (rooms.get(room.code) === room && room.status === "playing") beginNextRound(room);
+      }, 1000);
+      return;
+    }
+
     winner.budget -= room.currentBid;
     winner.items.push({ ...item, price: room.currentBid });
     room.message = `${item.emoji} ${item.name} trafia do ${winner.name} za ${room.currentBid} monet.`;
@@ -405,6 +458,7 @@ function resolveAuction(room) {
 }
 
 function resetForRematch(room) {
+  room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
   room.items = makeItems(room.roundCount);
   room.players.forEach(player => {
     player.budget = player.initialBudget;
@@ -418,7 +472,6 @@ function resetForRematch(room) {
 io.on("connection", socket => {
   socket.on("create-room", (payload = {}) => {
     const budget = Math.max(20, Math.min(1000, Math.floor(Number(payload.budget) || 100)));
-    const rounds = Math.max(5, Math.min(20, Math.floor(Number(payload.rounds) || 20)));
     const mode = payload.mode === "bot" ? "bot" : "online";
     const maxPlayers = Math.max(2, Math.min(4, Math.floor(Number(payload.maxPlayers) || 2)));
     const botCount = mode === "bot"
@@ -462,8 +515,8 @@ io.on("connection", socket => {
       status: mode === "bot" ? "quiz" : "waiting",
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      roundCount: rounds,
-      items: makeItems(rounds),
+      roundCount: players.length * MAX_DISHES_PER_PLAYER,
+      items: makeItems(players.length * MAX_DISHES_PER_PLAYER),
       players,
       round: 0,
       turn: 0,
@@ -529,8 +582,11 @@ io.on("connection", socket => {
     if (room.status !== "waiting") return;
     if (room.players.length < 2) return sendError(socket, "Potrzeba co najmniej 2 graczy.");
 
+    room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
+    room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
+  room.items = makeItems(room.roundCount);
     room.status = "quiz";
-    room.message = "Wszyscy gracze wypełniają quiz smaków.";
+    room.message = `Wszyscy gracze wypełniają quiz smaków. W tej grze będzie ${room.roundCount} dań.`;
     emitState(room);
   });
 

@@ -72,3 +72,15 @@ Na telefonach:
 - Po zakończeniu gry pokój może zostać ponownie otwarty.
 - Nowy gracz może wejść do zakończonego pokoju, jeżeli jest wolne miejsce.
 - Rozłączeni uczestnicy poprzedniej gry są usuwani przy ponownym otwieraniu pokoju.
+
+
+## Zasady 5 miejsc na dania
+
+- Każdy gracz może zdobyć maksymalnie 5 dań.
+- Liczba dań w grze jest wyliczana automatycznie:
+  - 2 graczy: 10 dań,
+  - 3 graczy: 15 dań,
+  - 4 graczy: 20 dań.
+- Usunięto ręczny wybór liczby dań.
+- Gracz z kompletem 5 dań jest pomijany w kolejnych licytacjach.
+- Jeżeli tylko jedna osoba ma jeszcze wolne miejsca, pozostałe dania są jej przyznawane bez licytacji, aż zapełni 5 miejsc.
