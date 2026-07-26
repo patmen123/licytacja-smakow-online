@@ -102,7 +102,50 @@ const AUCTION_ITEMS = [
   { name: "Koreczki", emoji: "🫒", category: "snack" },
   { name: "Bruschetta", emoji: "🍅", category: "snack" },
   { name: "Samosa", emoji: "🥟", category: "snack" },
-  { name: "Spring rolls", emoji: "🥢", category: "snack" }
+  { name: "Spring rolls", emoji: "🥢", category: "snack" },
+
+  { name: "Lekarz", emoji: "🧑‍⚕️", category: "job" },
+  { name: "Strażak", emoji: "🧑‍🚒", category: "job" },
+  { name: "Policjant", emoji: "👮", category: "job" },
+  { name: "Nauczyciel", emoji: "🧑‍🏫", category: "job" },
+  { name: "Kucharz", emoji: "🧑‍🍳", category: "job" },
+  { name: "Mechanik", emoji: "🧑‍🔧", category: "job" },
+  { name: "Rolnik", emoji: "🧑‍🌾", category: "job" },
+  { name: "Astronauta", emoji: "🧑‍🚀", category: "job" },
+  { name: "Pilot", emoji: "🧑‍✈️", category: "job" },
+  { name: "Prawnik", emoji: "⚖️", category: "job" },
+  { name: "Programista", emoji: "💻", category: "job" },
+  { name: "Architekt", emoji: "📐", category: "job" },
+  { name: "Fotograf", emoji: "📷", category: "job" },
+  { name: "Muzyk", emoji: "🎸", category: "job" },
+  { name: "Aktor", emoji: "🎭", category: "job" },
+  { name: "Weterynarz", emoji: "🐾", category: "job" },
+  { name: "Dentysta", emoji: "🦷", category: "job" },
+  { name: "Dziennikarz", emoji: "📰", category: "job" },
+  { name: "Naukowiec", emoji: "🔬", category: "job" },
+  { name: "Elektryk", emoji: "⚡", category: "job" },
+
+  { name: "Samochód", emoji: "🚗", category: "vehicle" },
+  { name: "Motocykl", emoji: "🏍️", category: "vehicle" },
+  { name: "Rower", emoji: "🚲", category: "vehicle" },
+  { name: "Autobus", emoji: "🚌", category: "vehicle" },
+  { name: "Ciężarówka", emoji: "🚚", category: "vehicle" },
+  { name: "Pociąg", emoji: "🚆", category: "vehicle" },
+  { name: "Tramwaj", emoji: "🚋", category: "vehicle" },
+  { name: "Metro", emoji: "🚇", category: "vehicle" },
+  { name: "Samolot", emoji: "✈️", category: "vehicle" },
+  { name: "Helikopter", emoji: "🚁", category: "vehicle" },
+  { name: "Statek", emoji: "🚢", category: "vehicle" },
+  { name: "Łódź", emoji: "🚤", category: "vehicle" },
+  { name: "Kajak", emoji: "🛶", category: "vehicle" },
+  { name: "Hulajnoga", emoji: "🛴", category: "vehicle" },
+  { name: "Deskorolka", emoji: "🛹", category: "vehicle" },
+  { name: "Traktor", emoji: "🚜", category: "vehicle" },
+  { name: "Karetka", emoji: "🚑", category: "vehicle" },
+  { name: "Wóz strażacki", emoji: "🚒", category: "vehicle" },
+  { name: "Radiowóz", emoji: "🚓", category: "vehicle" },
+  { name: "Rakieta", emoji: "🚀", category: "vehicle" }
+
 ];
 
 const rooms = new Map();
@@ -571,7 +614,7 @@ io.on("connection", socket => {
   socket.on("create-room", (payload = {}) => {
     const budget = Math.max(20, Math.min(1000, Math.floor(Number(payload.budget) || 100)));
     const mode = payload.mode === "bot" ? "bot" : "online";
-    const allowedCategories = new Set(["mixed", "main", "dessert", "drink", "snack"]);
+    const allowedCategories = new Set(["mixed", "main", "dessert", "drink", "snack", "job", "vehicle"]);
     const category = allowedCategories.has(payload.category) ? payload.category : "mixed";
     const maxPlayers = Math.max(2, Math.min(4, Math.floor(Number(payload.maxPlayers) || 2)));
     const botCount = mode === "bot"

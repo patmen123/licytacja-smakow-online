@@ -130,3 +130,13 @@ Quiz smaków i pula licytowanych produktów korzystają tylko z wybranej kategor
 - Produkty nie powtarzają się w obrębie jednej rozgrywki.
 - Każda kategoria ma co najmniej 20 unikalnych pozycji, więc również gra dla 4 osób może użyć 20 różnych produktów.
 - Rewanż losuje nowy zestaw, ale w pojedynczej grze każdy produkt występuje maksymalnie raz.
+
+
+## Wersja 17 — zawody i pojazdy
+
+Dodano dwie nowe kategorie:
+
+- **Zawody** — 20 unikalnych profesji,
+- **Pojazdy** — 20 unikalnych środków transportu.
+
+Gospodarz wybiera kategorię przed utworzeniem pokoju. Quiz i pula licytowanych obiektów korzystają wyłącznie z wybranej kategorii.
