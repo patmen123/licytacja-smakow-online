@@ -5,7 +5,10 @@ Gra internetowa dla dwóch osób. Gracze mogą korzystać z różnych urządzeń
 ## Funkcje
 
 - tworzenie pokoju z sześcioliterowym kodem,
+- krótki quiz smaków przed rozpoczęciem gry,
+- punkty produktów wyliczane z preferencji obu graczy,
 - link zaproszenia,
+- opuszczanie i anulowanie pokoju,
 - synchronizacja licytacji w czasie rzeczywistym,
 - serwer kontrolujący kolejność, budżety i wyniki,
 - automatyczny powrót do gry po chwilowym rozłączeniu,
@@ -48,3 +51,18 @@ Plik `render.yaml` pozwala również utworzyć usługę jako Blueprint.
 Pokoje są przechowywane w pamięci serwera. Restart lub ponowne wdrożenie serwera usuwa aktywne gry. Dla małej gry to najprostsze rozwiązanie. Wersja produkcyjna działająca na wielu instancjach serwera powinna używać Redis lub bazy danych.
 
 Nie uruchamiaj więcej niż jednej instancji serwera bez dodania współdzielonego magazynu stanu.
+
+
+## Jak quiz wpływa na punkty
+
+Każda potrawa zaczyna od 5 punktów.
+
+- ulubiona dla jednego gracza: +3 punkty,
+- najmniej lubiana dla jednego gracza: -2 punkty,
+- wynik jest ograniczony do 1–10 punktów.
+
+Przykłady:
+- oboje wybierają produkt jako ulubiony: 10 punktów,
+- jedna osoba wybiera go jako ulubiony: 8 punktów,
+- jedna osoba go lubi, a druga nie lubi: 6 punktów,
+- oboje wybierają go jako najmniej lubiany: 1 punkt.
