@@ -225,3 +225,24 @@ button{border:0;border-radius:14px;padding:13px 17px;font-weight:900;cursor:poin
   .podium-place strong{font-size:1rem}
   .podium-place span{font-size:.72rem}
 }
+
+
+/* Większa świnka zwycięzcy */
+#winner .dancing-pig{
+  font-size:2.4em;
+  vertical-align:middle;
+  margin-left:.25em;
+}
+
+.podium-place.first .podium-avatar{
+  font-size:5.2rem;
+}
+
+.podium-place.first .dancing-pig{
+  font-size:1.35em;
+}
+
+@media(max-width:700px){
+  #winner .dancing-pig{font-size:1.9em}
+  .podium-place.first .podium-avatar{font-size:4rem}
+}
