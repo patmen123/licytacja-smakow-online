@@ -96,3 +96,28 @@ Na telefonach:
 ## Poprawka wersji 14
 
 Po zakończeniu każdej licytacji gra najpierw sprawdza, czy został tylko jeden aktywny gracz z monetami i wolnymi miejscami. Jeżeli tak, dostaje on pozostałe dania za 0 monet aż do 5/5. Dopiero później sprawdzany jest warunek zakończenia gry z powodu braku monet.
+
+
+## Wersja 15 — podium i kategorie
+
+### Podium wyników
+
+Po zakończeniu gry trzech najlepszych graczy jest pokazywanych na podium:
+
+- 1. miejsce — złoty stopień i tańcząca świnka,
+- 2. miejsce — srebrny stopień,
+- 3. miejsce — brązowy stopień.
+
+Pełna lista wyników nadal znajduje się pod podium.
+
+### Kategorie licytacji
+
+Gospodarz wybiera kategorię przed utworzeniem pokoju:
+
+- miks wszystkiego,
+- dania główne,
+- desery,
+- napoje,
+- przekąski.
+
+Quiz smaków i pula licytowanych produktów korzystają tylko z wybranej kategorii.

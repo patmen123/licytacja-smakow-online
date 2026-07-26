@@ -19,12 +19,40 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-const FOODS = [
-  ["Pizza", "🍕"], ["Sushi", "🍣"], ["Burger", "🍔"], ["Tacos", "🌮"],
-  ["Ramen", "🍜"], ["Lody", "🍨"], ["Stek", "🥩"], ["Pierogi", "🥟"],
-  ["Kebab", "🥙"], ["Pączki", "🍩"], ["Naleśniki", "🥞"], ["Sałatka", "🥗"],
-  ["Spaghetti", "🍝"], ["Kurczak", "🍗"], ["Frytki", "🍟"], ["Hot dog", "🌭"],
-  ["Curry", "🍛"], ["Zupa", "🥣"], ["Ciasto", "🍰"], ["Czekolada", "🍫"]
+const AUCTION_ITEMS = [
+  { name: "Pizza", emoji: "🍕", category: "main" },
+  { name: "Sushi", emoji: "🍣", category: "main" },
+  { name: "Burger", emoji: "🍔", category: "main" },
+  { name: "Tacos", emoji: "🌮", category: "main" },
+  { name: "Ramen", emoji: "🍜", category: "main" },
+  { name: "Stek", emoji: "🥩", category: "main" },
+  { name: "Pierogi", emoji: "🥟", category: "main" },
+  { name: "Kebab", emoji: "🥙", category: "main" },
+  { name: "Spaghetti", emoji: "🍝", category: "main" },
+  { name: "Kurczak", emoji: "🍗", category: "main" },
+
+  { name: "Lody", emoji: "🍨", category: "dessert" },
+  { name: "Pączki", emoji: "🍩", category: "dessert" },
+  { name: "Naleśniki", emoji: "🥞", category: "dessert" },
+  { name: "Ciasto", emoji: "🍰", category: "dessert" },
+  { name: "Czekolada", emoji: "🍫", category: "dessert" },
+  { name: "Ciasteczka", emoji: "🍪", category: "dessert" },
+  { name: "Muffinka", emoji: "🧁", category: "dessert" },
+  { name: "Pudding", emoji: "🍮", category: "dessert" },
+
+  { name: "Kawa", emoji: "☕", category: "drink" },
+  { name: "Herbata", emoji: "🍵", category: "drink" },
+  { name: "Sok", emoji: "🧃", category: "drink" },
+  { name: "Lemoniada", emoji: "🍋", category: "drink" },
+  { name: "Koktajl", emoji: "🥤", category: "drink" },
+  { name: "Woda kokosowa", emoji: "🥥", category: "drink" },
+
+  { name: "Frytki", emoji: "🍟", category: "snack" },
+  { name: "Hot dog", emoji: "🌭", category: "snack" },
+  { name: "Popcorn", emoji: "🍿", category: "snack" },
+  { name: "Precel", emoji: "🥨", category: "snack" },
+  { name: "Orzeszki", emoji: "🥜", category: "snack" },
+  { name: "Kanapka", emoji: "🥪", category: "snack" }
 ];
 
 const rooms = new Map();
@@ -56,14 +84,30 @@ function shuffled(array) {
   return copy;
 }
 
-function makeItems(rounds) {
-  return shuffled(FOODS)
-    .slice(0, rounds)
-    .map(([name, emoji]) => ({ name, emoji, value: 5 }));
+function categoryPool(category) {
+  return category === "mixed"
+    ? AUCTION_ITEMS
+    : AUCTION_ITEMS.filter(item => item.category === category);
 }
 
-function randomBotQuiz() {
-  const names = shuffled(FOODS.map(([name]) => name));
+function makeItems(rounds, category = "mixed") {
+  const pool = categoryPool(category);
+  const expanded = [];
+
+  while (expanded.length < rounds) {
+    expanded.push(...shuffled(pool));
+  }
+
+  return expanded.slice(0, rounds).map(item => ({
+    name: item.name,
+    emoji: item.emoji,
+    category: item.category,
+    value: 5
+  }));
+}
+
+function randomBotQuiz(room) {
+  const names = shuffled(categoryPool(room.category).map(item => item.name));
   return { favorites: names.slice(0, 3), dislikes: names.slice(3, 6) };
 }
 
@@ -95,6 +139,7 @@ function publicState(room, viewerIndex = null) {
     code: room.code,
     status: room.status,
     mode: room.mode,
+    category: room.category,
     maxPlayers: room.maxPlayers,
     maxDishesPerPlayer: MAX_DISHES_PER_PLAYER,
     hostIndex: room.hostIndex,
@@ -111,7 +156,7 @@ function publicState(room, viewerIndex = null) {
     passed: room.passed,
     message: room.message,
     turnEndsAt: room.turnEndsAt,
-    quizFoods: FOODS.map(([name, emoji]) => ({ name, emoji })),
+    quizFoods: categoryPool(room.category).map(({ name, emoji }) => ({ name, emoji })),
     players: room.players.map((player, index) => ({
       name: player.name,
       budget: index === viewerIndex ? player.budget : null,
@@ -363,7 +408,7 @@ function startGame(room, isRematch = false) {
   clearTurnTimer(room);
   room.players.forEach(player => {
     player.rematchReady = false;
-    if (player.isBot && !player.quiz) player.quiz = randomBotQuiz();
+    if (player.isBot && !player.quiz) player.quiz = randomBotQuiz(room);
   });
 
   if (!isRematch) applyQuizScores(room);
@@ -463,7 +508,7 @@ function resolveAuction(room) {
 
 function resetForRematch(room) {
   room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
-  room.items = makeItems(room.roundCount);
+  room.items = makeItems(room.roundCount, room.category);
   room.players.forEach(player => {
     player.budget = player.initialBudget;
     player.items = [];
@@ -477,6 +522,8 @@ io.on("connection", socket => {
   socket.on("create-room", (payload = {}) => {
     const budget = Math.max(20, Math.min(1000, Math.floor(Number(payload.budget) || 100)));
     const mode = payload.mode === "bot" ? "bot" : "online";
+    const allowedCategories = new Set(["mixed", "main", "dessert", "drink", "snack"]);
+    const category = allowedCategories.has(payload.category) ? payload.category : "mixed";
     const maxPlayers = Math.max(2, Math.min(4, Math.floor(Number(payload.maxPlayers) || 2)));
     const botCount = mode === "bot"
       ? Math.max(1, Math.min(3, Math.floor(Number(payload.botCount) || 1)))
@@ -503,7 +550,7 @@ io.on("connection", socket => {
         budget,
         initialBudget: budget,
         items: [],
-        quiz: randomBotQuiz(),
+        quiz: null,
         rematchReady: true,
         isBot: true,
         token: null,
@@ -514,13 +561,14 @@ io.on("connection", socket => {
     const room = {
       code,
       mode,
+      category,
       maxPlayers: mode === "bot" ? players.length : maxPlayers,
       hostIndex: 0,
       status: mode === "bot" ? "quiz" : "waiting",
       createdAt: Date.now(),
       updatedAt: Date.now(),
       roundCount: players.length * MAX_DISHES_PER_PLAYER,
-      items: makeItems(players.length * MAX_DISHES_PER_PLAYER),
+      items: makeItems(players.length * MAX_DISHES_PER_PLAYER, category),
       players,
       round: 0,
       turn: 0,
@@ -588,7 +636,7 @@ io.on("connection", socket => {
 
     room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
     room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
-  room.items = makeItems(room.roundCount);
+  room.items = makeItems(room.roundCount, room.category);
     room.status = "quiz";
     room.message = `Wszyscy gracze wypełniają quiz smaków. W tej grze będzie ${room.roundCount} dań.`;
     emitState(room);
@@ -600,7 +648,7 @@ io.on("connection", socket => {
     const { room, index } = found;
     if (room.status !== "quiz") return sendError(socket, "Quiz nie jest teraz aktywny.");
 
-    const valid = new Set(FOODS.map(([name]) => name));
+    const valid = new Set(categoryPool(room.category).map(item => item.name));
     const favorites = Array.isArray(payload.favorites)
       ? [...new Set(payload.favorites.filter(name => valid.has(name)))].slice(0, 3)
       : [];
