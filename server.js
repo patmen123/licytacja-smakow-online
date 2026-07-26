@@ -7,24 +7,26 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const PORT = process.env.PORT || 3000;
+const TURN_MS = 10_000;
+const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: false }
-});
+const io = new Server(server, { cors: { origin: false } });
 
 app.use(express.static(path.join(__dirname, "public")));
+app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 const FOODS = [
   ["Pizza", "🍕"], ["Sushi", "🍣"], ["Burger", "🍔"], ["Tacos", "🌮"],
   ["Ramen", "🍜"], ["Lody", "🍨"], ["Stek", "🥩"], ["Pierogi", "🥟"],
-  ["Kebab", "🥙"], ["Pączki", "🍩"], ["Naleśniki", "🥞"], ["Sałatka", "🥗"]
+  ["Kebab", "🥙"], ["Pączki", "🍩"], ["Naleśniki", "🥞"], ["Sałatka", "🥗"],
+  ["Spaghetti", "🍝"], ["Kurczak", "🍗"], ["Frytki", "🍟"], ["Hot dog", "🌭"],
+  ["Curry", "🍛"], ["Zupa", "🥣"], ["Ciasto", "🍰"], ["Czekolada", "🍫"]
 ];
 
 const rooms = new Map();
-const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
-const DISCONNECT_GRACE_MS = 5 * 60 * 1000;
 
 function randomCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -35,20 +37,33 @@ function randomCode() {
   return code;
 }
 
-function token() {
+function makeToken() {
   return crypto.randomBytes(24).toString("hex");
 }
 
-function shuffledFoods(count) {
-  const copy = FOODS.map(([name, emoji]) => ({ name, emoji }));
+function cleanName(value, fallback) {
+  const name = String(value || "").trim().replace(/\s+/g, " ").slice(0, 18);
+  return name || fallback;
+}
+
+function shuffled(array) {
+  const copy = [...array];
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return copy.slice(0, count).map(food => ({
-    ...food,
-    value: 5
-  }));
+  return copy;
+}
+
+function makeItems(rounds) {
+  return shuffled(FOODS)
+    .slice(0, rounds)
+    .map(([name, emoji]) => ({ name, emoji, value: 5 }));
+}
+
+function randomBotQuiz() {
+  const names = shuffled(FOODS.map(([name]) => name));
+  return { favorites: names.slice(0, 3), dislikes: names.slice(3, 6) };
 }
 
 function applyQuizScores(room) {
@@ -56,24 +71,33 @@ function applyQuizScores(room) {
     let score = 5;
     for (const player of room.players) {
       if (!player?.quiz) continue;
-      if (player.quiz.favorites.includes(item.name)) score += 3;
-      if (player.quiz.dislikes.includes(item.name)) score -= 2;
+      if (player.quiz.favorites.includes(item.name)) score += 2;
+      if (player.quiz.dislikes.includes(item.name)) score -= 1;
     }
     item.value = Math.max(1, Math.min(10, score));
   }
 }
 
+function humanPlayers(room) {
+  return room.players.filter(player => player && !player.isBot);
+}
 
-function cleanName(value, fallback) {
-  const name = String(value || "").trim().replace(/\s+/g, " ").slice(0, 18);
-  return name || fallback;
+function connectedHumanCount(room) {
+  return humanPlayers(room).filter(player => player.socketId).length;
 }
 
 function publicState(room, viewerIndex = null) {
   const ended = room.status === "finished";
+  const viewer = Number.isInteger(viewerIndex) ? room.players[viewerIndex] : null;
+
   return {
     code: room.code,
     status: room.status,
+    mode: room.mode,
+    maxPlayers: room.maxPlayers,
+    hostIndex: room.hostIndex,
+    viewerIndex,
+    isHost: viewerIndex === room.hostIndex,
     round: room.round,
     roundCount: room.items.length,
     currentItem: room.items[room.round]
@@ -84,12 +108,13 @@ function publicState(room, viewerIndex = null) {
     turn: room.turn,
     passed: room.passed,
     message: room.message,
-    viewerIndex,
+    turnEndsAt: room.turnEndsAt,
     quizFoods: FOODS.map(([name, emoji]) => ({ name, emoji })),
-    players: room.players.map((player, index) => player ? ({
+    players: room.players.map((player, index) => ({
       name: player.name,
-      budget: player.budget,
-      connected: Boolean(player.socketId),
+      budget: index === viewerIndex ? player.budget : null,
+      connected: player.isBot || Boolean(player.socketId),
+      isBot: player.isBot,
       items: player.items.map(item => ({
         name: item.name,
         emoji: item.emoji,
@@ -100,16 +125,17 @@ function publicState(room, viewerIndex = null) {
       quizSubmitted: Boolean(player.quiz),
       rematchReady: Boolean(player.rematchReady),
       isYou: index === viewerIndex
-    }) : null)
+    })),
+    canStart: room.status === "waiting" &&
+      viewerIndex === room.hostIndex &&
+      room.players.length >= 2
   };
 }
 
 function emitState(room) {
   room.updatedAt = Date.now();
   room.players.forEach((player, index) => {
-    if (player?.socketId) {
-      io.to(player.socketId).emit("state", publicState(room, index));
-    }
+    if (player?.socketId) io.to(player.socketId).emit("state", publicState(room, index));
   });
 }
 
@@ -117,89 +143,18 @@ function sendError(socket, message) {
   socket.emit("game-error", { message });
 }
 
+function clearTurnTimer(room) {
+  if (room.turnTimer) clearTimeout(room.turnTimer);
+  room.turnTimer = null;
+  room.turnEndsAt = null;
+}
+
 function roomForSocket(socket) {
-  const code = socket.data.roomCode;
+  const room = rooms.get(socket.data.roomCode);
   const index = socket.data.playerIndex;
-  const room = rooms.get(code);
-  if (!room || !Number.isInteger(index) || room.players[index]?.token !== socket.data.playerToken) {
-    return null;
-  }
+  if (!room || !Number.isInteger(index)) return null;
+  if (room.players[index]?.token !== socket.data.playerToken) return null;
   return { room, index };
-}
-
-function startGame(room) {
-  room.players.forEach(player => {
-    if (player) player.rematchReady = false;
-  });
-  room.status = "playing";
-  room.round = 0;
-  room.turn = 0;
-  room.currentBid = 0;
-  room.leader = null;
-  room.passed = [false, false];
-  room.message = `${room.players[0].name} rozpoczyna licytację.`;
-  emitState(room);
-}
-
-
-function resetForRematch(room) {
-  const rounds = room.items.length;
-  const budget = room.players[0].initialBudget;
-
-  room.items = shuffledFoods(rounds);
-  applyQuizScores(room);
-  room.players.forEach(player => {
-    player.budget = budget;
-    player.items = [];
-    player.rematchReady = false;
-  });
-
-  room.round = 0;
-  room.turn = 0;
-  room.currentBid = 0;
-  room.leader = null;
-  room.passed = [false, false];
-  room.status = "playing";
-  room.message = `${room.players[0].name} rozpoczyna rewanż.`;
-  emitState(room);
-}
-
-function beginNextRound(room) {
-  room.round += 1;
-  if (room.round >= room.items.length) {
-    room.status = "finished";
-    room.currentBid = 0;
-    room.leader = null;
-    room.message = "Koniec gry — odkrywamy ukryte punkty.";
-    emitState(room);
-    return;
-  }
-
-  room.currentBid = 0;
-  room.leader = null;
-  room.passed = [false, false];
-  room.turn = room.round % 2;
-  room.message = `${room.players[room.turn].name} rozpoczyna kolejną licytację.`;
-  emitState(room);
-}
-
-function resolveAuction(room) {
-  const winnerIndex = room.leader;
-  if (winnerIndex === null) {
-    room.message = "Oboje spasowali. Potrawa przepada.";
-  } else {
-    const winner = room.players[winnerIndex];
-    const item = room.items[room.round];
-    winner.budget -= room.currentBid;
-    winner.items.push({ ...item, price: room.currentBid });
-    room.message = `${item.emoji} ${item.name} trafia do ${winner.name} za ${room.currentBid} monet.`;
-  }
-  emitState(room);
-  setTimeout(() => {
-    if (rooms.get(room.code) === room && room.status === "playing") {
-      beginNextRound(room);
-    }
-  }, 1300);
 }
 
 function attachPlayer(socket, room, index) {
@@ -209,51 +164,258 @@ function attachPlayer(socket, room, index) {
     io.sockets.sockets.get(player.socketId)?.disconnect(true);
   }
   player.socketId = socket.id;
-  player.disconnectedAt = null;
   socket.data.roomCode = room.code;
   socket.data.playerIndex = index;
   socket.data.playerToken = player.token;
   socket.join(room.code);
 }
 
+function nextActiveIndex(room, afterIndex, excludeLeader = true) {
+  const count = room.players.length;
+  for (let step = 1; step <= count; step++) {
+    const index = (afterIndex + step) % count;
+    if (room.passed[index]) continue;
+    if (excludeLeader && index === room.leader) continue;
+    return index;
+  }
+  return null;
+}
+
+function autoPassUnablePlayers(room) {
+  if (room.leader === null) return;
+  room.players.forEach((player, index) => {
+    if (index !== room.leader && player.budget <= room.currentBid) {
+      room.passed[index] = true;
+    }
+  });
+}
+
+function setTurn(room, index) {
+  clearTurnTimer(room);
+  room.turn = index;
+  room.turnEndsAt = Date.now() + TURN_MS;
+  emitState(room);
+
+  room.turnTimer = setTimeout(() => {
+    if (rooms.get(room.code) !== room || room.status !== "playing" || room.turn !== index) return;
+    handlePass(room, index, true);
+  }, TURN_MS + 50);
+
+  if (room.players[index].isBot) {
+    setTimeout(() => botMove(room, index), 650 + Math.floor(Math.random() * 850));
+  }
+}
+
+function advanceAuction(room, afterIndex) {
+  autoPassUnablePlayers(room);
+
+  const activeChallengers = room.players
+    .map((_player, index) => index)
+    .filter(index => !room.passed[index] && index !== room.leader);
+
+  if (room.leader !== null && activeChallengers.length === 0) {
+    resolveAuction(room);
+    return;
+  }
+
+  if (room.leader === null && room.passed.every(Boolean)) {
+    resolveAuction(room);
+    return;
+  }
+
+  const next = nextActiveIndex(room, afterIndex, room.leader !== null);
+  if (next === null) {
+    resolveAuction(room);
+    return;
+  }
+
+  room.message = `${room.players[next].name} ma 10 sekund na ruch.`;
+  setTurn(room, next);
+}
+
+function handleBid(room, index, amount) {
+  if (room.status !== "playing" || room.turn !== index || room.passed[index]) return false;
+  const player = room.players[index];
+
+  if (!Number.isInteger(amount)) return false;
+  if (amount <= room.currentBid || amount > player.budget) return false;
+
+  clearTurnTimer(room);
+  room.currentBid = amount;
+  room.leader = index;
+  room.message = `${player.name} licytuje ${amount} monet.`;
+  advanceAuction(room, index);
+  return true;
+}
+
+function handlePass(room, index, timedOut = false) {
+  if (room.status !== "playing" || room.turn !== index || room.passed[index]) return;
+  clearTurnTimer(room);
+  room.passed[index] = true;
+  room.message = timedOut
+    ? `${room.players[index].name} nie zdążył i automatycznie pasuje.`
+    : `${room.players[index].name} pasuje.`;
+  advanceAuction(room, index);
+}
+
+function botMove(room, index) {
+  if (rooms.get(room.code) !== room || room.status !== "playing" || room.turn !== index) return;
+  const bot = room.players[index];
+  const item = room.items[room.round];
+  const minBid = room.currentBid + 1;
+
+  if (bot.budget < minBid) {
+    handlePass(room, index);
+    return;
+  }
+
+  const likes = bot.quiz?.favorites.includes(item.name);
+  const dislikes = bot.quiz?.dislikes.includes(item.name);
+  const appetite = likes ? 1.15 : dislikes ? 0.55 : 0.82;
+  const target = Math.max(1, Math.floor((item.value / 10) * bot.initialBudget * appetite * 0.45));
+  const shouldBid = minBid <= target && Math.random() > (likes ? 0.08 : dislikes ? 0.48 : 0.25);
+
+  if (!shouldBid) {
+    handlePass(room, index);
+    return;
+  }
+
+  const increment = 1 + Math.floor(Math.random() * Math.max(1, Math.min(5, target - minBid + 1)));
+  handleBid(room, index, Math.min(bot.budget, minBid + increment - 1));
+}
+
+function startGame(room, isRematch = false) {
+  clearTurnTimer(room);
+  room.players.forEach(player => {
+    player.rematchReady = false;
+    if (player.isBot && !player.quiz) player.quiz = randomBotQuiz();
+  });
+
+  if (!isRematch) applyQuizScores(room);
+  room.status = "playing";
+  room.round = 0;
+  room.currentBid = 0;
+  room.leader = null;
+  room.passed = room.players.map(() => false);
+  const starting = 0;
+  room.message = `${room.players[starting].name} rozpoczyna licytację.`;
+  setTurn(room, starting);
+}
+
+function beginNextRound(room) {
+  room.round += 1;
+  if (room.round >= room.items.length) {
+    clearTurnTimer(room);
+    room.status = "finished";
+    room.currentBid = 0;
+    room.leader = null;
+    room.message = "Koniec gry — poznajemy Największego Obżartucha!";
+    emitState(room);
+    return;
+  }
+
+  room.currentBid = 0;
+  room.leader = null;
+  room.passed = room.players.map(() => false);
+  const starting = room.round % room.players.length;
+  room.message = `${room.players[starting].name} rozpoczyna kolejną licytację.`;
+  setTurn(room, starting);
+}
+
+function resolveAuction(room) {
+  clearTurnTimer(room);
+  if (room.leader === null) {
+    room.message = "Wszyscy spasowali. Potrawa przepada.";
+  } else {
+    const winner = room.players[room.leader];
+    const item = room.items[room.round];
+    winner.budget -= room.currentBid;
+    winner.items.push({ ...item, price: room.currentBid });
+    room.message = `${item.emoji} ${item.name} trafia do ${winner.name} za ${room.currentBid} monet.`;
+  }
+
+  emitState(room);
+  setTimeout(() => {
+    if (rooms.get(room.code) === room && room.status === "playing") beginNextRound(room);
+  }, 1300);
+}
+
+function resetForRematch(room) {
+  room.items = makeItems(room.roundCount);
+  room.players.forEach(player => {
+    player.budget = player.initialBudget;
+    player.items = [];
+    player.rematchReady = false;
+  });
+  applyQuizScores(room);
+  startGame(room, true);
+}
+
 io.on("connection", socket => {
   socket.on("create-room", (payload = {}) => {
     const budget = Math.max(20, Math.min(1000, Math.floor(Number(payload.budget) || 100)));
-    const rounds = Math.max(3, Math.min(12, Math.floor(Number(payload.rounds) || 10)));
+    const rounds = Math.max(5, Math.min(20, Math.floor(Number(payload.rounds) || 20)));
+    const mode = payload.mode === "bot" ? "bot" : "online";
+    const maxPlayers = Math.max(2, Math.min(4, Math.floor(Number(payload.maxPlayers) || 2)));
+    const botCount = mode === "bot"
+      ? Math.max(1, Math.min(3, Math.floor(Number(payload.botCount) || 1)))
+      : 0;
+
     const code = randomCode();
-    const playerToken = token();
+    const hostToken = makeToken();
+    const host = {
+      name: cleanName(payload.name, "Gracz 1"),
+      budget,
+      initialBudget: budget,
+      items: [],
+      quiz: null,
+      rematchReady: false,
+      isBot: false,
+      token: hostToken,
+      socketId: null
+    };
+
+    const players = [host];
+    for (let i = 0; i < botCount; i++) {
+      players.push({
+        name: `Komputer ${i + 1}`,
+        budget,
+        initialBudget: budget,
+        items: [],
+        quiz: randomBotQuiz(),
+        rematchReady: true,
+        isBot: true,
+        token: null,
+        socketId: null
+      });
+    }
 
     const room = {
       code,
-      status: "waiting",
+      mode,
+      maxPlayers: mode === "bot" ? players.length : maxPlayers,
+      hostIndex: 0,
+      status: mode === "bot" ? "quiz" : "waiting",
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      items: shuffledFoods(rounds),
+      roundCount: rounds,
+      items: makeItems(rounds),
+      players,
       round: 0,
       turn: 0,
       currentBid: 0,
       leader: null,
-      passed: [false, false],
-      message: "Pokój utworzony. Oczekiwanie na drugiego gracza.",
-      players: [
-        {
-          name: cleanName(payload.name, "Gracz 1"),
-          budget,
-          initialBudget: budget,
-          items: [],
-          quiz: null,
-          rematchReady: false,
-          token: playerToken,
-          socketId: null,
-          disconnectedAt: null
-        },
-        null
-      ]
+      passed: players.map(() => false),
+      message: mode === "bot"
+        ? "Wypełnij quiz smaków, aby rozpocząć grę z komputerem."
+        : "Pokój gotowy. Zaproś od 1 do 3 dodatkowych graczy.",
+      turnTimer: null,
+      turnEndsAt: null
     };
 
     rooms.set(code, room);
     attachPlayer(socket, room, 0);
-    socket.emit("room-created", { code, playerToken, playerIndex: 0 });
+    socket.emit("room-created", { code, playerToken: hostToken, playerIndex: 0 });
     emitState(room);
   });
 
@@ -261,25 +423,111 @@ io.on("connection", socket => {
     const code = String(payload.code || "").trim().toUpperCase();
     const room = rooms.get(code);
     if (!room) return sendError(socket, "Nie znaleziono pokoju o takim kodzie.");
+    if (room.mode !== "online") return sendError(socket, "To jest pokój gry z komputerem.");
     if (room.status !== "waiting") return sendError(socket, "Ta gra już się rozpoczęła.");
+    if (room.players.length >= room.maxPlayers) return sendError(socket, "Pokój jest już pełny.");
 
-    const playerToken = token();
-    room.players[1] = {
-      name: cleanName(payload.name, "Gracz 2"),
+    const playerToken = makeToken();
+    const index = room.players.length;
+    room.players.push({
+      name: cleanName(payload.name, `Gracz ${index + 1}`),
       budget: room.players[0].initialBudget,
       initialBudget: room.players[0].initialBudget,
       items: [],
       quiz: null,
       rematchReady: false,
+      isBot: false,
       token: playerToken,
-      socketId: null,
-      disconnectedAt: null
-    };
+      socketId: null
+    });
+    room.passed.push(false);
 
-    attachPlayer(socket, room, 1);
-    socket.emit("room-joined", { code, playerToken, playerIndex: 1 });
+    attachPlayer(socket, room, index);
+    socket.emit("room-joined", { code, playerToken, playerIndex: index });
+    room.message = `${room.players[index].name} dołączył. Graczy: ${room.players.length}/${room.maxPlayers}.`;
+    emitState(room);
+  });
+
+  socket.on("start-room", () => {
+    const found = roomForSocket(socket);
+    if (!found) return;
+    const { room, index } = found;
+    if (index !== room.hostIndex) return sendError(socket, "Tylko gospodarz może rozpocząć grę.");
+    if (room.status !== "waiting") return;
+    if (room.players.length < 2) return sendError(socket, "Potrzeba co najmniej 2 graczy.");
+
     room.status = "quiz";
-    room.message = "Oboje gracze dołączyli. Wypełnijcie krótki quiz smaków.";
+    room.message = "Wszyscy gracze wypełniają quiz smaków.";
+    emitState(room);
+  });
+
+  socket.on("submit-quiz", (payload = {}) => {
+    const found = roomForSocket(socket);
+    if (!found) return;
+    const { room, index } = found;
+    if (room.status !== "quiz") return sendError(socket, "Quiz nie jest teraz aktywny.");
+
+    const valid = new Set(FOODS.map(([name]) => name));
+    const favorites = Array.isArray(payload.favorites)
+      ? [...new Set(payload.favorites.filter(name => valid.has(name)))].slice(0, 3)
+      : [];
+    const dislikes = Array.isArray(payload.dislikes)
+      ? [...new Set(payload.dislikes.filter(name => valid.has(name)))].slice(0, 3)
+      : [];
+
+    if (favorites.length !== 3 || dislikes.length !== 3) {
+      return sendError(socket, "Wybierz dokładnie 3 ulubione i 3 najmniej lubiane dania.");
+    }
+    if (favorites.some(name => dislikes.includes(name))) {
+      return sendError(socket, "To samo danie nie może znaleźć się w obu grupach.");
+    }
+
+    room.players[index].quiz = { favorites, dislikes };
+    room.message = `${room.players[index].name} ukończył quiz.`;
+
+    if (humanPlayers(room).every(player => player.quiz)) {
+      startGame(room);
+      return;
+    }
+    emitState(room);
+  });
+
+  socket.on("place-bid", payload => {
+    const found = roomForSocket(socket);
+    if (!found) return;
+    const { room, index } = found;
+    const amount = Number(payload?.amount);
+
+    if (room.status !== "playing") return sendError(socket, "Gra nie jest aktywna.");
+    if (room.turn !== index) return sendError(socket, "Teraz ruch ma inny gracz.");
+    if (!Number.isInteger(amount)) return sendError(socket, "Oferta musi być pełną liczbą monet.");
+    if (amount <= room.currentBid) return sendError(socket, `Oferta musi być wyższa niż ${room.currentBid}.`);
+    if (amount > room.players[index].budget) return sendError(socket, `Masz tylko ${room.players[index].budget} monet.`);
+
+    handleBid(room, index, amount);
+  });
+
+  socket.on("pass", () => {
+    const found = roomForSocket(socket);
+    if (!found) return;
+    const { room, index } = found;
+    if (room.turn !== index) return sendError(socket, "Teraz ruch ma inny gracz.");
+    handlePass(room, index);
+  });
+
+  socket.on("request-rematch", () => {
+    const found = roomForSocket(socket);
+    if (!found) return;
+    const { room, index } = found;
+    if (room.status !== "finished") return;
+
+    room.players[index].rematchReady = true;
+    const humansReady = humanPlayers(room).every(player => player.rematchReady);
+    if (humansReady) {
+      resetForRematch(room);
+      return;
+    }
+    room.message = `${room.players[index].name} chce rewanżu. Czekamy na pozostałych.`;
     emitState(room);
   });
 
@@ -297,122 +545,6 @@ io.on("connection", socket => {
     emitState(room);
   });
 
-
-  socket.on("submit-quiz", (payload = {}) => {
-    const found = roomForSocket(socket);
-    if (!found) return sendError(socket, "Nie jesteś przypisany do aktywnej gry.");
-
-    const { room, index } = found;
-    if (room.status !== "quiz") return sendError(socket, "Quiz nie jest teraz aktywny.");
-
-    const validNames = new Set(FOODS.map(([name]) => name));
-    const favorites = Array.isArray(payload.favorites)
-      ? [...new Set(payload.favorites.filter(name => validNames.has(name)))].slice(0, 3)
-      : [];
-    const dislikes = Array.isArray(payload.dislikes)
-      ? [...new Set(payload.dislikes.filter(name => validNames.has(name)))].slice(0, 3)
-      : [];
-
-    if (favorites.length !== 3 || dislikes.length !== 3) {
-      return sendError(socket, "Wybierz dokładnie 3 ulubione i 3 najmniej lubiane potrawy.");
-    }
-    if (favorites.some(name => dislikes.includes(name))) {
-      return sendError(socket, "Ta sama potrawa nie może być jednocześnie ulubiona i najmniej lubiana.");
-    }
-
-    room.players[index].quiz = { favorites, dislikes };
-    room.message = `${room.players[index].name} ukończył quiz.`;
-
-    if (room.players.every(player => player?.quiz)) {
-      applyQuizScores(room);
-      startGame(room);
-      return;
-    }
-    emitState(room);
-  });
-
-  socket.on("place-bid", payload => {
-    const found = roomForSocket(socket);
-    if (!found) return sendError(socket, "Nie jesteś przypisany do aktywnej gry.");
-    const { room, index } = found;
-
-    if (room.status !== "playing") return sendError(socket, "Gra nie jest teraz aktywna.");
-    if (room.turn !== index) return sendError(socket, "Teraz licytuje drugi gracz.");
-    if (!room.players[1]) return sendError(socket, "Drugi gracz jeszcze nie dołączył.");
-
-    const amount = Number(payload?.amount);
-    const player = room.players[index];
-
-    if (!Number.isInteger(amount)) return sendError(socket, "Oferta musi być pełną liczbą monet.");
-    if (amount <= room.currentBid) return sendError(socket, `Oferta musi być wyższa niż ${room.currentBid}.`);
-    if (amount > player.budget) return sendError(socket, `Masz tylko ${player.budget} monet.`);
-
-    room.currentBid = amount;
-    room.leader = index;
-    room.passed[index] = false;
-
-    const opponentIndex = 1 - index;
-    const opponent = room.players[opponentIndex];
-
-    if (opponent.budget <= room.currentBid) {
-      room.message = `${player.name} licytuje ${amount} monet. ${opponent.name} nie ma wystarczającej liczby monet, aby przebić ofertę.`;
-      resolveAuction(room);
-      return;
-    }
-
-    room.message = `${player.name} licytuje ${amount} monet.`;
-    room.turn = opponentIndex;
-    emitState(room);
-  });
-
-  socket.on("pass", () => {
-    const found = roomForSocket(socket);
-    if (!found) return sendError(socket, "Nie jesteś przypisany do aktywnej gry.");
-    const { room, index } = found;
-
-    if (room.status !== "playing") return sendError(socket, "Gra nie jest teraz aktywna.");
-    if (room.turn !== index) return sendError(socket, "Teraz ruch ma drugi gracz.");
-
-    room.passed[index] = true;
-
-    if (room.leader !== null && room.leader !== index) {
-      resolveAuction(room);
-      return;
-    }
-
-    if (room.passed[0] && room.passed[1]) {
-      resolveAuction(room);
-      return;
-    }
-
-    room.turn = 1 - index;
-    room.message = `${room.players[index].name} pasuje.`;
-    emitState(room);
-  });
-
-
-
-  socket.on("request-rematch", () => {
-    const found = roomForSocket(socket);
-    if (!found) return sendError(socket, "Nie jesteś przypisany do aktywnej gry.");
-
-    const { room, index } = found;
-    if (room.status !== "finished") {
-      return sendError(socket, "Rewanż można rozpocząć dopiero po zakończeniu gry.");
-    }
-
-    room.players[index].rematchReady = true;
-    const readyCount = room.players.filter(player => player?.rematchReady).length;
-
-    if (readyCount === 2) {
-      resetForRematch(room);
-      return;
-    }
-
-    room.message = `${room.players[index].name} chce zagrać ponownie. Czekamy na drugiego gracza.`;
-    emitState(room);
-  });
-
   socket.on("leave-room", () => {
     const found = roomForSocket(socket);
     if (!found) {
@@ -422,23 +554,26 @@ io.on("connection", socket => {
 
     const { room, index } = found;
     const player = room.players[index];
-
-    if (player?.socketId === socket.id) {
-      player.socketId = null;
-    }
+    player.socketId = null;
 
     socket.leave(room.code);
     socket.data.roomCode = null;
     socket.data.playerIndex = null;
     socket.data.playerToken = null;
 
-    const connectedPlayers = room.players.filter(Boolean).filter(p => p.socketId);
-
-    if (room.status === "waiting" || connectedPlayers.length === 0) {
+    if (room.status === "waiting") {
+      room.players.splice(index, 1);
+      room.passed.splice(index, 1);
+      if (index === room.hostIndex && room.players.length) room.hostIndex = 0;
+      if (room.players.every(p => p.isBot) || room.players.length === 0) rooms.delete(room.code);
+      else emitState(room);
+    } else if (connectedHumanCount(room) === 0) {
+      clearTurnTimer(room);
       rooms.delete(room.code);
     } else {
-      room.message = `${player.name} opuścił pokój.`;
-      emitState(room);
+      room.message = `${player.name} opuścił grę.`;
+      if (room.status === "playing" && room.turn === index) handlePass(room, index);
+      else emitState(room);
     }
 
     socket.emit("left-room");
@@ -448,13 +583,11 @@ io.on("connection", socket => {
     const found = roomForSocket(socket);
     if (!found) return;
     const { room, index } = found;
-    const player = room.players[index];
-
-    if (player.socketId === socket.id) {
-      player.socketId = null;
-      player.disconnectedAt = Date.now();
-      room.message = `${player.name} stracił połączenie. Może wrócić do gry w ciągu 5 minut.`;
-      emitState(room);
+    if (room.players[index].socketId === socket.id) {
+      room.players[index].socketId = null;
+      room.message = `${room.players[index].name} stracił połączenie.`;
+      if (room.status === "playing" && room.turn === index) handlePass(room, index, true);
+      else emitState(room);
     }
   });
 });
@@ -462,11 +595,8 @@ io.on("connection", socket => {
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {
-    const allDisconnected = room.players.filter(Boolean).every(player => !player.socketId);
-    const disconnectedTooLong = room.players.filter(Boolean).some(
-      player => player.disconnectedAt && now - player.disconnectedAt > DISCONNECT_GRACE_MS
-    );
-    if ((allDisconnected && disconnectedTooLong) || now - room.updatedAt > ROOM_TTL_MS) {
+    if (now - room.updatedAt > ROOM_TTL_MS) {
+      clearTurnTimer(room);
       rooms.delete(code);
     }
   }

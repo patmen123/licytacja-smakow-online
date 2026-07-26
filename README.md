@@ -1,93 +1,55 @@
-# Licytacja Smaków Online
+# Licytacja Smaków Online — wersja 8
 
-Gra internetowa dla dwóch osób. Gracze mogą korzystać z różnych urządzeń i różnych sieci.
+Gra internetowa dla **2–4 graczy** albo jednego gracza przeciwko **1–3 komputerom**.
 
-## Funkcje
+## Najważniejsze funkcje
 
-- tworzenie pokoju z sześcioliterowym kodem,
-- krótki quiz smaków przed rozpoczęciem gry,
-- punkty produktów wyliczane z preferencji obu graczy,
-- link zaproszenia,
-- opuszczanie i anulowanie pokoju,
-- synchronizacja licytacji w czasie rzeczywistym,
-- serwer kontrolujący kolejność, budżety i wyniki,
-- automatyczny powrót do gry po chwilowym rozłączeniu,
-- rewanż w tym samym pokoju bez tworzenia nowego kodu,
-- losowe potrawy i ukryte punkty,
-- responsywny wygląd na telefonie i komputerze.
+- pokoje online dla minimum 2 i maksimum 4 osób,
+- gospodarz rozpoczyna grę, gdy dołączy odpowiednia liczba osób,
+- tryb z komputerem,
+- pula 20 różnych dań,
+- od 5 do 20 licytowanych dań,
+- 10 sekund na każdy ruch,
+- automatyczny pas po przekroczeniu czasu,
+- automatyczne pomijanie graczy, którzy nie mogą przebić oferty,
+- ukryte budżety przeciwników,
+- quiz smaków wpływający na ukryte punkty,
+- automatyczne dołączanie przez link,
+- rewanż w tym samym pokoju,
+- tytuł „Największy obżartuch” i tańcząca świnka dla zwycięzcy.
+
+## Publikacja aktualizacji
+
+Na GitHubie podmień:
+
+- `server.js`
+- `public/index.html`
+- `public/app.js`
+- `public/style.css`
+- `README.md`
+
+Następnie w Renderze wybierz **Manual Deploy → Deploy latest commit**.
 
 ## Uruchomienie lokalne
-
-Wymagany jest Node.js 20 lub nowszy.
 
 ```bash
 npm install
 npm start
 ```
 
-Następnie otwórz:
+Otwórz `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
+## Zasady czasu
 
-Do testowania na jednym komputerze otwórz stronę w dwóch różnych przeglądarkach albo w zwykłym i prywatnym oknie.
-
-## Publikacja na Render
-
-1. Utwórz nowe repozytorium na GitHubie.
-2. Wgraj do niego wszystkie pliki z tego projektu.
-3. W Render wybierz **New → Web Service**.
-4. Połącz repozytorium.
-5. Ustaw:
-   - Build Command: `npm install`
-   - Start Command: `npm start`
-6. Opublikuj usługę.
-7. Wyślij drugiej osobie publiczny adres nadany przez Render.
-
-Plik `render.yaml` pozwala również utworzyć usługę jako Blueprint.
-
-## Ważne ograniczenie tej wersji
-
-Pokoje są przechowywane w pamięci serwera. Restart lub ponowne wdrożenie serwera usuwa aktywne gry. Dla małej gry to najprostsze rozwiązanie. Wersja produkcyjna działająca na wielu instancjach serwera powinna używać Redis lub bazy danych.
-
-Nie uruchamiaj więcej niż jednej instancji serwera bez dodania współdzielonego magazynu stanu.
+Serwer przydziela każdemu uczestnikowi 10 sekund. Jeżeli gracz nie zalicytuje ani nie spasuje, serwer automatycznie wybiera pas. Licznik działa po stronie serwera, więc odświeżenie strony nie zatrzymuje czasu.
 
 
-## Jak quiz wpływa na punkty
+## Uproszczona wersja mobilna
 
-Każda potrawa zaczyna od 5 punktów.
+Na telefonach:
 
-- ulubiona dla jednego gracza: +3 punkty,
-- najmniej lubiana dla jednego gracza: -2 punkty,
-- wynik jest ograniczony do 1–10 punktów.
-
-Przykłady:
-- oboje wybierają produkt jako ulubiony: 10 punktów,
-- jedna osoba wybiera go jako ulubiony: 8 punktów,
-- jedna osoba go lubi, a druga nie lubi: 6 punktów,
-- oboje wybierają go jako najmniej lubiany: 1 punkt.
-
-
-## Rewanż
-
-Po zakończeniu gry obaj gracze mogą kliknąć **Zagraj ponownie**. Gdy obie osoby są gotowe:
-
-- pokój i kod pozostają bez zmian,
-- budżety wracają do wartości początkowej,
-- zdobyte potrawy są zerowane,
-- losowana jest nowa kolejność potraw,
-- zachowywane są odpowiedzi z quizu smaków.
-
-
-## Zwycięzca i automatyczne dołączanie
-
-- zwycięzca otrzymuje tytuł **Największy obżartuch**,
-- przy jego nazwie pojawia się animowana tańcząca świnka,
-- wejście przez link zaproszenia automatycznie dołącza do pokoju,
-- druga osoba nie musi wpisywać kodu ani klikać przycisku „Dołącz”.
-
-
-## Ukryty budżet przeciwnika
-
-Każdy gracz widzi tylko własną liczbę monet. Budżet przeciwnika jest ukryty zarówno podczas licytacji, jak i w końcowym podsumowaniu. Serwer nadal wykorzystuje prawdziwy budżet do sprawdzania ofert i automatycznego kończenia licytacji.
+- własna liczba monet jest widoczna w lewym górnym rogu karty licytacji,
+- karta licytacji jest najważniejszym elementem ekranu,
+- karty graczy są mniejsze i przewijane poziomo,
+- budżety przeciwników pozostają ukryte,
+- przyciski licytacji są większe i łatwiejsze do naciskania.
