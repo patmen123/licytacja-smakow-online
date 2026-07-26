@@ -47,9 +47,22 @@ function shuffledFoods(count) {
   }
   return copy.slice(0, count).map(food => ({
     ...food,
-    value: Math.floor(Math.random() * 10) + 1
+    value: 5
   }));
 }
+
+function applyQuizScores(room) {
+  for (const item of room.items) {
+    let score = 5;
+    for (const player of room.players) {
+      if (!player?.quiz) continue;
+      if (player.quiz.favorites.includes(item.name)) score += 3;
+      if (player.quiz.dislikes.includes(item.name)) score -= 2;
+    }
+    item.value = Math.max(1, Math.min(10, score));
+  }
+}
+
 
 function cleanName(value, fallback) {
   const name = String(value || "").trim().replace(/\s+/g, " ").slice(0, 18);
@@ -72,6 +85,7 @@ function publicState(room, viewerIndex = null) {
     passed: room.passed,
     message: room.message,
     viewerIndex,
+    quizFoods: FOODS.map(([name, emoji]) => ({ name, emoji })),
     players: room.players.map((player, index) => player ? ({
       name: player.name,
       budget: player.budget,
@@ -83,6 +97,7 @@ function publicState(room, viewerIndex = null) {
         ...(ended ? { value: item.value } : {})
       })),
       score: ended ? player.items.reduce((sum, item) => sum + item.value, 0) : null,
+      quizSubmitted: Boolean(player.quiz),
       isYou: index === viewerIndex
     }) : null)
   };
@@ -199,6 +214,7 @@ io.on("connection", socket => {
           budget,
           initialBudget: budget,
           items: [],
+          quiz: null,
           token: playerToken,
           socketId: null,
           disconnectedAt: null
@@ -225,6 +241,7 @@ io.on("connection", socket => {
       budget: room.players[0].initialBudget,
       initialBudget: room.players[0].initialBudget,
       items: [],
+      quiz: null,
       token: playerToken,
       socketId: null,
       disconnectedAt: null
@@ -232,7 +249,9 @@ io.on("connection", socket => {
 
     attachPlayer(socket, room, 1);
     socket.emit("room-joined", { code, playerToken, playerIndex: 1 });
-    startGame(room);
+    room.status = "quiz";
+    room.message = "Oboje gracze dołączyli. Wypełnijcie krótki quiz smaków.";
+    emitState(room);
   });
 
   socket.on("reconnect-player", (payload = {}) => {
@@ -246,6 +265,40 @@ io.on("connection", socket => {
     attachPlayer(socket, room, index);
     socket.emit("reconnected-player", { code, playerIndex: index });
     room.message = `${room.players[index].name} wrócił do gry.`;
+    emitState(room);
+  });
+
+
+  socket.on("submit-quiz", (payload = {}) => {
+    const found = roomForSocket(socket);
+    if (!found) return sendError(socket, "Nie jesteś przypisany do aktywnej gry.");
+
+    const { room, index } = found;
+    if (room.status !== "quiz") return sendError(socket, "Quiz nie jest teraz aktywny.");
+
+    const validNames = new Set(FOODS.map(([name]) => name));
+    const favorites = Array.isArray(payload.favorites)
+      ? [...new Set(payload.favorites.filter(name => validNames.has(name)))].slice(0, 3)
+      : [];
+    const dislikes = Array.isArray(payload.dislikes)
+      ? [...new Set(payload.dislikes.filter(name => validNames.has(name)))].slice(0, 3)
+      : [];
+
+    if (favorites.length !== 3 || dislikes.length !== 3) {
+      return sendError(socket, "Wybierz dokładnie 3 ulubione i 3 najmniej lubiane potrawy.");
+    }
+    if (favorites.some(name => dislikes.includes(name))) {
+      return sendError(socket, "Ta sama potrawa nie może być jednocześnie ulubiona i najmniej lubiana.");
+    }
+
+    room.players[index].quiz = { favorites, dislikes };
+    room.message = `${room.players[index].name} ukończył quiz.`;
+
+    if (room.players.every(player => player?.quiz)) {
+      applyQuizScores(room);
+      startGame(room);
+      return;
+    }
     emitState(room);
   });
 
