@@ -78,3 +78,16 @@ Po zakończeniu gry obaj gracze mogą kliknąć **Zagraj ponownie**. Gdy obie os
 - zdobyte potrawy są zerowane,
 - losowana jest nowa kolejność potraw,
 - zachowywane są odpowiedzi z quizu smaków.
+
+
+## Zwycięzca i automatyczne dołączanie
+
+- zwycięzca otrzymuje tytuł **Największy obżartuch**,
+- przy jego nazwie pojawia się animowana tańcząca świnka,
+- wejście przez link zaproszenia automatycznie dołącza do pokoju,
+- druga osoba nie musi wpisywać kodu ani klikać przycisku „Dołącz”.
+
+
+## Ukryty budżet przeciwnika
+
+Każdy gracz widzi tylko własną liczbę monet. Budżet przeciwnika jest ukryty zarówno podczas licytacji, jak i w końcowym podsumowaniu. Serwer nadal wykorzystuje prawdziwy budżet do sprawdzania ofert i automatycznego kończenia licytacji.
