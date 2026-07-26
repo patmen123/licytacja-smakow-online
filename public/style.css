@@ -161,3 +161,8 @@ button{border:0;border-radius:14px;padding:13px 17px;font-weight:900;cursor:poin
     font-size:.8rem;
   }
 }
+
+.name-gate{max-width:520px}
+.name-gate label{max-width:360px;margin:16px auto 7px;text-align:left}
+.name-gate input{max-width:360px;margin:0 auto 12px}
+.name-gate button{min-width:220px}

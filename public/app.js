@@ -7,10 +7,11 @@ let latestState = null;
 let quizSelections = { favorites: new Set(), dislikes: new Set() };
 let session = JSON.parse(localStorage.getItem("foodAuctionSession") || "null");
 let autoJoinAttempted = false;
+let pendingInviteCode = null;
 let timerAnimation = null;
 
 function show(screen) {
-  ["home", "waiting", "quizScreen", "game", "resultsScreen"]
+  ["home", "nameGate", "waiting", "quizScreen", "game", "resultsScreen"]
     .forEach(id => $(id).classList.toggle("hidden", id !== screen));
 }
 
@@ -32,6 +33,9 @@ function returnToMenu() {
   latestState = null;
   quizSelections = { favorites: new Set(), dislikes: new Set() };
   autoJoinAttempted = false;
+  pendingInviteCode = null;
+  $("confirmLinkJoinBtn").disabled = false;
+  $("confirmLinkJoinBtn").textContent = "Dołącz do pokoju";
   history.replaceState({}, "", location.pathname);
   show("home");
 }
@@ -57,13 +61,12 @@ function copyInvite() {
 function tryAutoJoinFromLink() {
   const room = new URLSearchParams(location.search).get("room");
   if (!room || session || autoJoinAttempted || !socket.connected) return;
-  autoJoinAttempted = true;
-  $("autoJoinInfo").classList.remove("hidden");
-  $("autoJoinInfo").textContent = `Dołączanie do pokoju ${room.toUpperCase()}…`;
-  socket.emit("join-room", {
-    name: $("guestName").value || "Gracz",
-    code: room.toUpperCase()
-  });
+
+  pendingInviteCode = room.toUpperCase();
+  $("roomCode").value = pendingInviteCode;
+  $("autoJoinInfo").classList.add("hidden");
+  show("nameGate");
+  setTimeout(() => $("linkPlayerName").focus(), 0);
 }
 
 function toggleMode() {
@@ -233,6 +236,31 @@ function render(state) {
   if (state.status === "finished") return renderResults(state);
 }
 
+
+function joinFromInviteLink() {
+  const name = $("linkPlayerName").value.trim();
+  if (!name) {
+    toast("Wpisz swoją nazwę gracza.");
+    $("linkPlayerName").focus();
+    return;
+  }
+  if (!pendingInviteCode || autoJoinAttempted) return;
+
+  autoJoinAttempted = true;
+  $("confirmLinkJoinBtn").disabled = true;
+  $("confirmLinkJoinBtn").textContent = "Dołączanie…";
+
+  socket.emit("join-room", {
+    name,
+    code: pendingInviteCode
+  });
+}
+
+$("confirmLinkJoinBtn").addEventListener("click", joinFromInviteLink);
+$("linkPlayerName").addEventListener("keydown", event => {
+  if (event.key === "Enter") joinFromInviteLink();
+});
+
 $("gameMode").addEventListener("change", toggleMode);
 $("createBtn").addEventListener("click", () => {
   socket.emit("create-room", {
@@ -271,6 +299,9 @@ $("leaveAfterGameBtn").addEventListener("click", () => confirm("Opuścić pokój
 socket.on("room-created", saveSession);
 socket.on("room-joined", data => {
   $("autoJoinInfo").classList.add("hidden");
+  $("confirmLinkJoinBtn").disabled = false;
+  $("confirmLinkJoinBtn").textContent = "Dołącz do pokoju";
+  pendingInviteCode = null;
   saveSession(data);
 });
 socket.on("state", render);
@@ -280,6 +311,9 @@ socket.on("left-room", () => {
 });
 socket.on("game-error", ({ message }) => {
   $("autoJoinInfo").classList.add("hidden");
+  $("confirmLinkJoinBtn").disabled = false;
+  $("confirmLinkJoinBtn").textContent = "Dołącz do pokoju";
+  autoJoinAttempted = false;
   toast(message);
   if (message.includes("nie istnieje") || message.includes("Nieprawidłowy")) returnToMenu();
 });
@@ -295,9 +329,8 @@ socket.on("disconnect", () => {
 
 const roomFromLink = new URLSearchParams(location.search).get("room");
 if (roomFromLink && !session) {
-  $("roomCode").value = roomFromLink.toUpperCase();
-  $("autoJoinInfo").classList.remove("hidden");
-  $("autoJoinInfo").textContent = `Przygotowanie do dołączenia do pokoju ${roomFromLink.toUpperCase()}…`;
+  pendingInviteCode = roomFromLink.toUpperCase();
+  $("roomCode").value = pendingInviteCode;
   tryAutoJoinFromLink();
 }
 toggleMode();
