@@ -30,6 +30,16 @@ const AUCTION_ITEMS = [
   { name: "Kebab", emoji: "🥙", category: "main" },
   { name: "Spaghetti", emoji: "🍝", category: "main" },
   { name: "Kurczak", emoji: "🍗", category: "main" },
+  { name: "Curry", emoji: "🍛", category: "main" },
+  { name: "Zupa", emoji: "🥣", category: "main" },
+  { name: "Risotto", emoji: "🍚", category: "main" },
+  { name: "Lasagne", emoji: "🧀", category: "main" },
+  { name: "Burrito", emoji: "🌯", category: "main" },
+  { name: "Paella", emoji: "🥘", category: "main" },
+  { name: "Kotlety", emoji: "🍖", category: "main" },
+  { name: "Omlet", emoji: "🍳", category: "main" },
+  { name: "Ryba", emoji: "🐟", category: "main" },
+  { name: "Gulasz", emoji: "🍲", category: "main" },
 
   { name: "Lody", emoji: "🍨", category: "dessert" },
   { name: "Pączki", emoji: "🍩", category: "dessert" },
@@ -39,6 +49,18 @@ const AUCTION_ITEMS = [
   { name: "Ciasteczka", emoji: "🍪", category: "dessert" },
   { name: "Muffinka", emoji: "🧁", category: "dessert" },
   { name: "Pudding", emoji: "🍮", category: "dessert" },
+  { name: "Tort", emoji: "🎂", category: "dessert" },
+  { name: "Sernik", emoji: "🍰", category: "dessert" },
+  { name: "Szarlotka", emoji: "🥧", category: "dessert" },
+  { name: "Makaroniki", emoji: "🍬", category: "dessert" },
+  { name: "Beza", emoji: "☁️", category: "dessert" },
+  { name: "Tiramisu", emoji: "☕", category: "dessert" },
+  { name: "Brownie", emoji: "🟫", category: "dessert" },
+  { name: "Gofry", emoji: "🧇", category: "dessert" },
+  { name: "Galaretka", emoji: "🍮", category: "dessert" },
+  { name: "Sorbet", emoji: "🍧", category: "dessert" },
+  { name: "Karmelki", emoji: "🍬", category: "dessert" },
+  { name: "Donut z polewą", emoji: "🍩", category: "dessert" },
 
   { name: "Kawa", emoji: "☕", category: "drink" },
   { name: "Herbata", emoji: "🍵", category: "drink" },
@@ -46,13 +68,41 @@ const AUCTION_ITEMS = [
   { name: "Lemoniada", emoji: "🍋", category: "drink" },
   { name: "Koktajl", emoji: "🥤", category: "drink" },
   { name: "Woda kokosowa", emoji: "🥥", category: "drink" },
+  { name: "Kakao", emoji: "☕", category: "drink" },
+  { name: "Cola", emoji: "🥤", category: "drink" },
+  { name: "Smoothie", emoji: "🍓", category: "drink" },
+  { name: "Mleko", emoji: "🥛", category: "drink" },
+  { name: "Bubble tea", emoji: "🧋", category: "drink" },
+  { name: "Espresso", emoji: "☕", category: "drink" },
+  { name: "Cappuccino", emoji: "☕", category: "drink" },
+  { name: "Latte", emoji: "☕", category: "drink" },
+  { name: "Mrożona herbata", emoji: "🧊", category: "drink" },
+  { name: "Napój energetyczny", emoji: "⚡", category: "drink" },
+  { name: "Woda gazowana", emoji: "💧", category: "drink" },
+  { name: "Kompot", emoji: "🍎", category: "drink" },
+  { name: "Napój imbirowy", emoji: "🫚", category: "drink" },
+  { name: "Shake waniliowy", emoji: "🥤", category: "drink" },
 
   { name: "Frytki", emoji: "🍟", category: "snack" },
   { name: "Hot dog", emoji: "🌭", category: "snack" },
   { name: "Popcorn", emoji: "🍿", category: "snack" },
   { name: "Precel", emoji: "🥨", category: "snack" },
   { name: "Orzeszki", emoji: "🥜", category: "snack" },
-  { name: "Kanapka", emoji: "🥪", category: "snack" }
+  { name: "Kanapka", emoji: "🥪", category: "snack" },
+  { name: "Nachosy", emoji: "🧀", category: "snack" },
+  { name: "Krakersy", emoji: "🍘", category: "snack" },
+  { name: "Chipsy", emoji: "🥔", category: "snack" },
+  { name: "Paluszki", emoji: "🥖", category: "snack" },
+  { name: "Mini pizza", emoji: "🍕", category: "snack" },
+  { name: "Skrzydełka", emoji: "🍗", category: "snack" },
+  { name: "Mozzarella sticks", emoji: "🧀", category: "snack" },
+  { name: "Onion rings", emoji: "🧅", category: "snack" },
+  { name: "Mini tacos", emoji: "🌮", category: "snack" },
+  { name: "Wrap", emoji: "🌯", category: "snack" },
+  { name: "Koreczki", emoji: "🫒", category: "snack" },
+  { name: "Bruschetta", emoji: "🍅", category: "snack" },
+  { name: "Samosa", emoji: "🥟", category: "snack" },
+  { name: "Spring rolls", emoji: "🥢", category: "snack" }
 ];
 
 const rooms = new Map();
@@ -91,14 +141,13 @@ function categoryPool(category) {
 }
 
 function makeItems(rounds, category = "mixed") {
-  const pool = categoryPool(category);
-  const expanded = [];
+  const pool = shuffled(categoryPool(category));
 
-  while (expanded.length < rounds) {
-    expanded.push(...shuffled(pool));
+  if (pool.length < rounds) {
+    throw new Error(`Za mało unikalnych produktów w kategorii ${category}.`);
   }
 
-  return expanded.slice(0, rounds).map(item => ({
+  return pool.slice(0, rounds).map(item => ({
     name: item.name,
     emoji: item.emoji,
     category: item.category,

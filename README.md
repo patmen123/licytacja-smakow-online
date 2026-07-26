@@ -121,3 +121,12 @@ Gospodarz wybiera kategorię przed utworzeniem pokoju:
 - przekąski.
 
 Quiz smaków i pula licytowanych produktów korzystają tylko z wybranej kategorii.
+
+
+## Wersja 16 — większa świnka i brak powtórek
+
+- Świnka zwycięzcy na podium jest znacznie większa.
+- Powiększono także świnkę przy tytule „Największy obżartuch”.
+- Produkty nie powtarzają się w obrębie jednej rozgrywki.
+- Każda kategoria ma co najmniej 20 unikalnych pozycji, więc również gra dla 4 osób może użyć 20 różnych produktów.
+- Rewanż losuje nowy zestaw, ale w pojedynczej grze każdy produkt występuje maksymalnie raz.
