@@ -3,10 +3,11 @@
 const socket = io();
 const $ = id => document.getElementById(id);
 let latestState = null;
+let quizSelections = { favorites: new Set(), dislikes: new Set() };
 let session = JSON.parse(localStorage.getItem("foodAuctionSession") || "null");
 
 function show(screen) {
-  ["home", "waiting", "game", "resultsScreen"].forEach(id => $(id).classList.toggle("hidden", id !== screen));
+  ["home", "waiting", "quizScreen", "game", "resultsScreen"].forEach(id => $(id).classList.toggle("hidden", id !== screen));
 }
 
 function toast(message) {
@@ -30,6 +31,7 @@ function returnToMenu() {
   localStorage.removeItem("foodAuctionSession");
   session = null;
   latestState = null;
+  quizSelections = { favorites: new Set(), dislikes: new Set() };
   history.replaceState({}, "", location.pathname);
   $("bidAmount").value = "";
   show("home");
@@ -49,6 +51,48 @@ function copyInvite() {
     .catch(() => toast(`Kod pokoju: ${code}`));
 }
 
+
+function toggleQuizChoice(type, name) {
+  const own = quizSelections[type];
+  const otherType = type === "favorites" ? "dislikes" : "favorites";
+  const other = quizSelections[otherType];
+
+  if (own.has(name)) own.delete(name);
+  else {
+    if (own.size >= 3) return toast("Możesz wybrać maksymalnie 3 potrawy.");
+    other.delete(name);
+    own.add(name);
+  }
+  if (latestState?.status === "quiz") renderQuiz(latestState);
+}
+
+function renderChoiceGrid(containerId, foods, type) {
+  const selected = quizSelections[type];
+  $(containerId).innerHTML = foods.map(food => `
+    <button class="food-choice ${selected.has(food.name) ? "selected" : ""}"
+      data-type="${type}" data-name="${food.name}">
+      <span>${food.emoji}</span>${food.name}
+    </button>`).join("");
+
+  $(containerId).querySelectorAll(".food-choice").forEach(button => {
+    button.addEventListener("click", () => toggleQuizChoice(button.dataset.type, button.dataset.name));
+  });
+}
+
+function renderQuiz(state) {
+  show("quizScreen");
+  const me = state.players[state.viewerIndex];
+  renderChoiceGrid("favoriteChoices", state.quizFoods, "favorites");
+  renderChoiceGrid("dislikeChoices", state.quizFoods, "dislikes");
+  $("favCount").textContent = `${quizSelections.favorites.size}/3`;
+  $("dislikeCount").textContent = `${quizSelections.dislikes.size}/3`;
+  $("submitQuizBtn").disabled =
+    quizSelections.favorites.size !== 3 || quizSelections.dislikes.size !== 3 || me.quizSubmitted;
+  $("quizWaiting").classList.toggle("hidden", !me.quizSubmitted);
+  $("favoriteChoices").classList.toggle("locked", me.quizSubmitted);
+  $("dislikeChoices").classList.toggle("locked", me.quizSubmitted);
+}
+
 function render(state) {
   latestState = state;
   $("gameCode").textContent = state.code;
@@ -56,6 +100,11 @@ function render(state) {
   if (state.status === "waiting") {
     show("waiting");
     $("codeButton").textContent = state.code;
+    return;
+  }
+
+  if (state.status === "quiz") {
+    renderQuiz(state);
     return;
   }
 
@@ -149,6 +198,15 @@ $("bidAmount").addEventListener("keydown", event => {
 
 $("passBtn").addEventListener("click", () => socket.emit("pass"));
 $("shareBtn").addEventListener("click", copyInvite);
+$("submitQuizBtn").addEventListener("click", () => {
+  socket.emit("submit-quiz", {
+    favorites: [...quizSelections.favorites],
+    dislikes: [...quizSelections.dislikes]
+  });
+});
+$("leaveQuizBtn").addEventListener("click", () => {
+  if (confirm("Na pewno chcesz opuścić ten pokój?")) leaveRoom();
+});
 $("leaveWaitingBtn").addEventListener("click", leaveRoom);
 $("leaveGameBtn").addEventListener("click", () => {
   if (confirm("Na pewno chcesz opuścić tę grę?")) leaveRoom();

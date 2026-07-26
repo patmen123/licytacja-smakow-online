@@ -44,6 +44,26 @@
       <p class="muted">Gra rozpocznie się automatycznie, gdy druga osoba dołączy.</p>
     </section>
 
+
+    <section id="quizScreen" class="card quiz-screen hidden">
+      <div class="eyebrow">Quiz smaków</div>
+      <h2>Co lubisz najbardziej?</h2>
+      <p>Wybierz dokładnie 3 ulubione i 3 najmniej lubiane potrawy. Odpowiedzi obu graczy ustalą ukryte punkty produktów.</p>
+      <div class="quiz-columns">
+        <div>
+          <h3>😍 Ulubione <span id="favCount">0/3</span></h3>
+          <div id="favoriteChoices" class="choice-grid"></div>
+        </div>
+        <div>
+          <h3>😖 Najmniej lubiane <span id="dislikeCount">0/3</span></h3>
+          <div id="dislikeChoices" class="choice-grid"></div>
+        </div>
+      </div>
+      <button id="submitQuizBtn" class="primary">Zatwierdź odpowiedzi</button>
+      <button id="leaveQuizBtn" class="danger">Opuść pokój</button>
+      <p id="quizWaiting" class="muted hidden">Odpowiedzi zapisane. Czekamy na drugiego gracza…</p>
+    </section>
+
     <section id="game" class="hidden">
       <div class="statusbar">
         <span>Pokój <strong id="gameCode"></strong></span>
