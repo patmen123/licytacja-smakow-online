@@ -268,8 +268,18 @@ io.on("connection", socket => {
     room.currentBid = amount;
     room.leader = index;
     room.passed[index] = false;
+
+    const opponentIndex = 1 - index;
+    const opponent = room.players[opponentIndex];
+
+    if (opponent.budget <= room.currentBid) {
+      room.message = `${player.name} licytuje ${amount} monet. ${opponent.name} nie ma wystarczającej liczby monet, aby przebić ofertę.`;
+      resolveAuction(room);
+      return;
+    }
+
     room.message = `${player.name} licytuje ${amount} monet.`;
-    room.turn = 1 - index;
+    room.turn = opponentIndex;
     emitState(room);
   });
 
@@ -296,6 +306,38 @@ io.on("connection", socket => {
     room.turn = 1 - index;
     room.message = `${room.players[index].name} pasuje.`;
     emitState(room);
+  });
+
+
+  socket.on("leave-room", () => {
+    const found = roomForSocket(socket);
+    if (!found) {
+      socket.emit("left-room");
+      return;
+    }
+
+    const { room, index } = found;
+    const player = room.players[index];
+
+    if (player?.socketId === socket.id) {
+      player.socketId = null;
+    }
+
+    socket.leave(room.code);
+    socket.data.roomCode = null;
+    socket.data.playerIndex = null;
+    socket.data.playerToken = null;
+
+    const connectedPlayers = room.players.filter(Boolean).filter(p => p.socketId);
+
+    if (room.status === "waiting" || connectedPlayers.length === 0) {
+      rooms.delete(room.code);
+    } else {
+      room.message = `${player.name} opuścił pokój.`;
+      emitState(room);
+    }
+
+    socket.emit("left-room");
   });
 
   socket.on("disconnect", () => {
