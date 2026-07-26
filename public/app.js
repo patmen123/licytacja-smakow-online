@@ -168,8 +168,11 @@ function renderResults(state) {
       ).join("") : '<p class="muted">Brak zdobytych potraw</p>'}
     </article>
   `).join("");
-  localStorage.removeItem("foodAuctionSession");
-  session = null;
+
+  const me = state.players[state.viewerIndex];
+  $("rematchBtn").disabled = me.rematchReady;
+  $("rematchBtn").textContent = me.rematchReady ? "Czekamy na przeciwnika…" : "Zagraj ponownie";
+  $("rematchWaiting").classList.toggle("hidden", !me.rematchReady);
 }
 
 $("createBtn").addEventListener("click", () => {
@@ -197,6 +200,10 @@ $("bidAmount").addEventListener("keydown", event => {
 });
 
 $("passBtn").addEventListener("click", () => socket.emit("pass"));
+$("rematchBtn").addEventListener("click", () => socket.emit("request-rematch"));
+$("leaveAfterGameBtn").addEventListener("click", () => {
+  if (confirm("Na pewno chcesz opuścić ten pokój?")) leaveRoom();
+});
 $("shareBtn").addEventListener("click", copyInvite);
 $("submitQuizBtn").addEventListener("click", () => {
   socket.emit("submit-quiz", {
@@ -212,7 +219,7 @@ $("leaveGameBtn").addEventListener("click", () => {
   if (confirm("Na pewno chcesz opuścić tę grę?")) leaveRoom();
 });
 $("codeButton").addEventListener("click", copyInvite);
-$("againBtn").addEventListener("click", returnToMenu);
+
 
 socket.on("left-room", () => {
   returnToMenu();

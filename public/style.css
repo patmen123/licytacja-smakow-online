@@ -23,3 +23,5 @@ button{border:0;border-radius:14px;padding:13px 17px;font-weight:900;cursor:poin
 .quiz-screen>.primary,.quiz-screen>.danger{margin:5px}
 @media(max-width:760px){.quiz-columns{grid-template-columns:1fr}.choice-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:430px){.choice-grid{grid-template-columns:1fr}}
+
+.result-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
