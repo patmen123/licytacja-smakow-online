@@ -183,3 +183,15 @@ Interfejs używa teraz odpowiednich określeń:
 - miks: „elementy”.
 
 Zmiana obejmuje karty graczy, licznik 0/5, komunikat o pustej kolekcji, numer rundy, podium i podsumowanie.
+
+
+## Wersja 21 — poprawka powtarzających się elementów
+
+Usunięto błąd, przez który aktualnie wylicytowany element mógł zostać ponownie dodany podczas automatycznego uzupełniania kolekcji.
+
+Dodatkowe zabezpieczenia:
+
+- następna runda jest ustawiana przed automatycznym rozdaniem pozostałych elementów,
+- automatyczne rozdanie pomija wszystko, co już posiada którykolwiek gracz,
+- pula gry jest dodatkowo oczyszczana z powtarzających się nazw,
+- jeden element może trafić do graczy maksymalnie jeden raz w danej rozgrywce.

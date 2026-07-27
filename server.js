@@ -184,7 +184,12 @@ function categoryPool(category) {
 }
 
 function makeItems(rounds, category = "mixed") {
-  const pool = shuffled(categoryPool(category));
+  const uniquePool = [
+    ...new Map(
+      categoryPool(category).map(item => [item.name.trim().toLowerCase(), item])
+    ).values()
+  ];
+  const pool = shuffled(uniquePool);
 
   if (pool.length < rounds) {
     throw new Error(`Za mało unikalnych produktów w kategorii ${category}.`);
@@ -329,19 +334,30 @@ function assignRemainingDishesIfOnlyOneHasSlots(room) {
   const available = playersWithFreeSlots(room);
   if (available.length !== 1) return false;
 
-  const { player, index } = available[0];
+  const { player } = available[0];
   const needed = MAX_DISHES_PER_PLAYER - player.items.length;
   if (needed <= 0) return false;
 
-  const remaining = room.items.slice(room.round, room.round + needed);
+  const alreadyOwnedNames = new Set(
+    room.players.flatMap(existingPlayer =>
+      existingPlayer.items.map(item => item.name.trim().toLowerCase())
+    )
+  );
+
+  const remaining = room.items
+    .slice(room.round)
+    .filter(item => !alreadyOwnedNames.has(item.name.trim().toLowerCase()))
+    .slice(0, needed);
+
   remaining.forEach(item => {
     player.items.push({ ...item, price: 0 });
+    alreadyOwnedNames.add(item.name.trim().toLowerCase());
   });
 
-  room.round += remaining.length;
+  room.round = room.items.length;
   finishGame(
     room,
-    `${player.name} jako jedyny aktywny gracz miał wolne miejsca i otrzymał brakujące elementy do kompletu 5.`
+    `${player.name} jako jedyny aktywny gracz miał wolne miejsca i otrzymał ${remaining.length} brakujących elementów do kompletu 5.`
   );
   return true;
 }
@@ -524,20 +540,19 @@ function startGame(room, isRematch = false) {
 }
 
 function beginNextRound(room) {
-  if (assignRemainingDishesIfOnlyOneHasSlots(room)) return;
-
-  if (shouldFinishForBankruptcy(room)) {
-    finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
-    return;
-  }
-
   room.round += 1;
+
   if (room.round >= room.items.length) {
     finishGame(room);
     return;
   }
 
   if (assignRemainingDishesIfOnlyOneHasSlots(room)) return;
+
+  if (shouldFinishForBankruptcy(room)) {
+    finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
+    return;
+  }
 
   room.currentBid = 0;
   room.leader = null;
@@ -586,14 +601,6 @@ function resolveAuction(room) {
 
   setTimeout(() => {
     if (rooms.get(room.code) !== room || room.status !== "playing") return;
-
-    if (assignRemainingDishesIfOnlyOneHasSlots(room)) return;
-
-    if (shouldFinishForBankruptcy(room)) {
-      finishGame(room, "Gra zakończona — tylko jeden gracz ma jeszcze monety.");
-      return;
-    }
-
     beginNextRound(room);
   }, 1300);
 }
