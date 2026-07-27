@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f97316">
-  <title>Licytacja Smaków Online</title>
+  <title>Aukcyjna Arena</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <main class="shell">
   <header>
-    <div class="eyebrow">2–4 graczy albo gra z komputerem</div>
-    <h1>🍽️ Licytacja Smaków</h1>
-    <p>Każdy gracz może zdobyć maksymalnie 5 dań. Liczba dań dopasowuje się automatycznie do liczby uczestników.</p>
+    <div class="eyebrow">Gra licytacyjna dla 2–4 osób albo przeciw komputerowi</div>
+    <h1>🎯 Aukcyjna Arena</h1>
+    <p>Wybierz kategorię i licytuj jedzenie, zawody, pojazdy oraz inne przedmioty.</p>
   </header>
 
   <p id="autoJoinInfo" class="auto-join-info hidden">Dołączanie do pokoju…</p>
@@ -27,111 +27,140 @@
     <button id="confirmLinkJoinBtn" class="primary">Dołącz do pokoju</button>
   </section>
 
-  <section id="home" class="card home-grid">
-    <div>
-      <h2>Utwórz grę</h2>
-      <label>Twoje imię<input id="hostName" maxlength="18" value="Gracz 1"></label>
 
-      
-      <div class="category-picker">
-        <div class="category-picker-head">
+  <section id="home" class="card home-screen">
+    <div class="category-picker">
+      <div class="category-picker-head">
+        <div>
           <strong>Wybierz kategorię</strong>
-          <span id="selectedCategoryName">Miks wszystkiego</span>
+          <p>Kliknij kafelek, aby ustawić temat pokoju.</p>
         </div>
-
-        <div id="categoryTiles" class="category-tiles">
-          <button type="button" class="category-tile selected" data-category="mixed">
-            <span class="category-icon">🎲</span>
-            <span class="category-title">Miks</span>
-            <span class="category-description">Wszystkie kategorie razem</span>
-            <span class="category-expand">Rozwiń</span>
-          </button>
-
-          <button type="button" class="category-tile" data-category="main">
-            <span class="category-icon">🍝</span>
-            <span class="category-title">Dania główne</span>
-            <span class="category-description">Pizza, sushi, ramen i inne</span>
-            <span class="category-expand">Rozwiń</span>
-          </button>
-
-          <button type="button" class="category-tile" data-category="dessert">
-            <span class="category-icon">🍰</span>
-            <span class="category-title">Desery</span>
-            <span class="category-description">Lody, ciasta i słodkości</span>
-            <span class="category-expand">Rozwiń</span>
-          </button>
-
-          <button type="button" class="category-tile" data-category="drink">
-            <span class="category-icon">🥤</span>
-            <span class="category-title">Napoje</span>
-            <span class="category-description">Kawa, soki i koktajle</span>
-            <span class="category-expand">Rozwiń</span>
-          </button>
-
-          <button type="button" class="category-tile" data-category="snack">
-            <span class="category-icon">🍿</span>
-            <span class="category-title">Przekąski</span>
-            <span class="category-description">Frytki, popcorn i nachosy</span>
-            <span class="category-expand">Rozwiń</span>
-          </button>
-
-          <button type="button" class="category-tile" data-category="job">
-            <span class="category-icon">🧑‍🚀</span>
-            <span class="category-title">Zawody</span>
-            <span class="category-description">Lekarz, pilot, programista i inne</span>
-            <span class="category-expand">Rozwiń</span>
-          </button>
-
-          <button type="button" class="category-tile" data-category="vehicle">
-            <span class="category-icon">🚗</span>
-            <span class="category-title">Pojazdy</span>
-            <span class="category-description">Samochody, pociągi i samoloty</span>
-            <span class="category-expand">Rozwiń</span>
-          </button>
-        </div>
-
-        <div id="categoryAction" class="category-action">
-          <div>
-            <strong id="categoryActionTitle">Miks wszystkiego</strong>
-            <p id="categoryActionDescription">W tej grze pojawią się elementy ze wszystkich kategorii.</p>
-          </div>
-          <button id="createCategoryRoomBtn" type="button" class="primary">Utwórz pokój w tej kategorii</button>
-        </div>
-
-        <input id="auctionCategory" type="hidden" value="mixed">
+        <span id="selectedCategoryName">🎲 Miks wszystkiego</span>
       </div>
 
-      <label>Tryb gry
-        <select id="gameMode">
-          <option value="online">Online — 2 do 4 graczy</option>
-          <option value="bot">Z komputerem</option>
-        </select>
-      </label>
-      <label>Budżet<input id="budget" type="number" min="20" max="1000" value="100"></label>
-      <label id="maxPlayersLabel">Maksymalna liczba graczy
-        <select id="maxPlayers">
-          <option value="2">2 graczy</option>
-          <option value="3">3 graczy</option>
-          <option value="4" selected>4 graczy</option>
-        </select>
-      </label>
-      <label id="botCountLabel" class="hidden">Liczba komputerów
-        <select id="botCount">
-          <option value="1">1 komputer</option>
-          <option value="2">2 komputery</option>
-          <option value="3">3 komputery</option>
-        </select>
-      </label>
-      <button id="createBtn" class="primary hidden" aria-hidden="true" tabindex="-1">Utwórz grę</button>
+      <div id="categoryTiles" class="category-tiles">
+        <button type="button" class="category-tile selected" data-category="mixed">
+          <span class="category-icon">🎲</span>
+          <span class="category-title">Miks</span>
+          <span class="category-description">Wszystkie kategorie razem</span>
+          <span class="category-expand">Wybrano</span>
+        </button>
+        <button type="button" class="category-tile" data-category="main">
+          <span class="category-icon">🍝</span>
+          <span class="category-title">Dania główne</span>
+          <span class="category-description">Pizza, sushi, ramen i inne</span>
+          <span class="category-expand">Rozwiń</span>
+        </button>
+        <button type="button" class="category-tile" data-category="dessert">
+          <span class="category-icon">🍰</span>
+          <span class="category-title">Desery</span>
+          <span class="category-description">Lody, ciasta i słodkości</span>
+          <span class="category-expand">Rozwiń</span>
+        </button>
+        <button type="button" class="category-tile" data-category="drink">
+          <span class="category-icon">🥤</span>
+          <span class="category-title">Napoje</span>
+          <span class="category-description">Kawa, soki i koktajle</span>
+          <span class="category-expand">Rozwiń</span>
+        </button>
+        <button type="button" class="category-tile" data-category="snack">
+          <span class="category-icon">🍿</span>
+          <span class="category-title">Przekąski</span>
+          <span class="category-description">Frytki, popcorn i nachosy</span>
+          <span class="category-expand">Rozwiń</span>
+        </button>
+        <button type="button" class="category-tile" data-category="job">
+          <span class="category-icon">🧑‍🚀</span>
+          <span class="category-title">Zawody</span>
+          <span class="category-description">Lekarz, pilot i programista</span>
+          <span class="category-expand">Rozwiń</span>
+        </button>
+        <button type="button" class="category-tile" data-category="vehicle">
+          <span class="category-icon">🚗</span>
+          <span class="category-title">Pojazdy</span>
+          <span class="category-description">Samochody, pociągi i samoloty</span>
+          <span class="category-expand">Rozwiń</span>
+        </button>
+      </div>
+
+      <div id="categoryAction" class="category-action">
+        <div>
+          <strong id="categoryActionTitle">🎲 Miks wszystkiego</strong>
+          <p id="categoryActionDescription">W tej grze pojawią się elementy ze wszystkich kategorii.</p>
+        </div>
+        <span class="category-action-note">Ustawienia wybranej gry znajdują się poniżej.</span>
+      </div>
+      <input id="auctionCategory" type="hidden" value="mixed">
     </div>
 
-    <div class="divider"><span>lub</span></div>
+    <div class="room-columns">
+      <section class="room-panel">
+        <div class="room-panel-heading">
+          <span class="room-panel-icon">➕</span>
+          <div>
+            <h2>Utwórz pokój</h2>
+            <p>Ustaw grę i zaproś uczestników.</p>
+          </div>
+        </div>
 
-    <div>
-      <h2>Dołącz do pokoju</h2>
-      <label>Twoje imię<input id="guestName" maxlength="18" value="Gracz 2"></label>
-      <label>Kod pokoju<input id="roomCode" maxlength="6" autocomplete="off" placeholder="np. KOT728"></label>
-      <button id="joinBtn" class="secondary">Dołącz</button>
+        <label>Twoje imię
+          <input id="hostName" maxlength="18" value="Gracz 1">
+        </label>
+
+        <label>Tryb gry
+          <select id="gameMode">
+            <option value="online">Online — 2 do 4 graczy</option>
+            <option value="bot">Z komputerem</option>
+          </select>
+        </label>
+
+        <div class="settings-row">
+          <label>Budżet
+            <input id="budget" type="number" min="20" max="1000" value="100">
+          </label>
+
+          <label id="maxPlayersLabel">Maksymalna liczba graczy
+            <select id="maxPlayers">
+              <option value="2">2 graczy</option>
+              <option value="3">3 graczy</option>
+              <option value="4" selected>4 graczy</option>
+            </select>
+          </label>
+
+          <label id="botCountLabel" class="hidden">Liczba komputerów
+            <select id="botCount">
+              <option value="1">1 komputer</option>
+              <option value="2">2 komputery</option>
+              <option value="3">3 komputery</option>
+            </select>
+          </label>
+        </div>
+
+        <button id="createBtn" class="primary">Utwórz pokój</button>
+        <button id="createCategoryRoomBtn" class="hidden" type="button" aria-hidden="true" tabindex="-1">Utwórz pokój</button>
+      </section>
+
+      <div class="room-divider" aria-hidden="true"><span>lub</span></div>
+
+      <section class="room-panel join-panel">
+        <div class="room-panel-heading">
+          <span class="room-panel-icon">🔗</span>
+          <div>
+            <h2>Dołącz do pokoju</h2>
+            <p>Wpisz swoją nazwę i kod od gospodarza.</p>
+          </div>
+        </div>
+
+        <label>Twoje imię
+          <input id="guestName" maxlength="18" value="Gracz 2">
+        </label>
+
+        <label>Kod pokoju
+          <input id="roomCode" maxlength="6" autocomplete="off" placeholder="np. KOT728">
+        </label>
+
+        <button id="joinBtn" class="secondary">Dołącz</button>
+      </section>
     </div>
   </section>
 
