@@ -10,6 +10,61 @@ let autoJoinAttempted = false;
 let pendingInviteCode = null;
 let timerAnimation = null;
 
+const CATEGORY_META = {
+  mixed: {
+    name: "Miks wszystkiego",
+    icon: "🎲",
+    description: "W tej grze pojawią się elementy ze wszystkich kategorii.",
+    winnerIcon: "🐷",
+    winnerTitle: "Największy obżartuch"
+  },
+  main: {
+    name: "Dania główne",
+    icon: "🍝",
+    description: "Licytuj dania główne: pizzę, sushi, ramen i wiele innych.",
+    winnerIcon: "🐷",
+    winnerTitle: "Największy obżartuch"
+  },
+  dessert: {
+    name: "Desery",
+    icon: "🍰",
+    description: "Licytuj desery, ciasta, lody i inne słodkości.",
+    winnerIcon: "🐷",
+    winnerTitle: "Największy obżartuch"
+  },
+  drink: {
+    name: "Napoje",
+    icon: "🥤",
+    description: "Licytuj kawy, soki, koktajle i pozostałe napoje.",
+    winnerIcon: "🐷",
+    winnerTitle: "Największy obżartuch"
+  },
+  snack: {
+    name: "Przekąski",
+    icon: "🍿",
+    description: "Licytuj przekąski: frytki, popcorn, nachosy i inne.",
+    winnerIcon: "🐷",
+    winnerTitle: "Największy obżartuch"
+  },
+  job: {
+    name: "Zawody",
+    icon: "🧑‍🚀",
+    description: "Licytuj zawody: lekarza, pilota, programistę i inne profesje.",
+    winnerIcon: "🧑‍🚀",
+    winnerTitle: "Mistrz zawodów"
+  },
+  vehicle: {
+    name: "Pojazdy",
+    icon: "🚗",
+    description: "Licytuj pojazdy: samochody, pociągi, samoloty i inne.",
+    winnerIcon: "🚗",
+    winnerTitle: "Król pojazdów"
+  }
+};
+
+let selectedCategory = "mixed";
+
+
 function show(screen) {
   ["home", "nameGate", "waiting", "quizScreen", "game", "resultsScreen"]
     .forEach(id => $(id).classList.toggle("hidden", id !== screen));
@@ -69,6 +124,28 @@ function tryAutoJoinFromLink() {
   setTimeout(() => $("linkPlayerName").focus(), 0);
 }
 
+
+function selectCategory(category) {
+  const meta = CATEGORY_META[category] || CATEGORY_META.mixed;
+  selectedCategory = category;
+  $("auctionCategory").value = category;
+  $("selectedCategoryName").textContent = `${meta.icon} ${meta.name}`;
+  $("categoryActionTitle").textContent = `${meta.icon} ${meta.name}`;
+  $("categoryActionDescription").textContent = meta.description;
+
+  document.querySelectorAll(".category-tile").forEach(tile => {
+    const isSelected = tile.dataset.category === category;
+    tile.classList.toggle("selected", isSelected);
+    tile.classList.toggle("expanded", isSelected);
+    const expand = tile.querySelector(".category-expand");
+    if (expand) expand.textContent = isSelected ? "Wybrano" : "Rozwiń";
+  });
+}
+
+function createSelectedCategoryRoom() {
+  $("createBtn").click();
+}
+
 function toggleMode() {
   const bot = $("gameMode").value === "bot";
   $("maxPlayersLabel").classList.toggle("hidden", bot);
@@ -105,6 +182,8 @@ function renderChoiceGrid(containerId, foods, type) {
 function renderWaiting(state) {
   show("waiting");
   $("waitingCode").textContent = state.code;
+  const categoryMeta = CATEGORY_META[state.category] || CATEGORY_META.mixed;
+  $("waitingCategoryBadge").textContent = `${categoryMeta.icon} ${categoryMeta.name}`;
   $("waitingPlayers").textContent = `Graczy: ${state.players.length}/${state.maxPlayers}`;
   $("waitingList").innerHTML = state.players.map(player =>
     `<span class="waiting-player">${player.isBot ? "🤖" : "👤"} ${player.name}</span>`
@@ -169,7 +248,9 @@ function animateTimer(state) {
 function renderGame(state) {
   show("game");
   $("gameCode").textContent = state.code;
-  $("roundLabel").textContent = `Danie ${state.round + 1} z ${state.roundCount}`;
+  const categoryMeta = CATEGORY_META[state.category] || CATEGORY_META.mixed;
+  $("gameCategoryBadge").textContent = `${categoryMeta.icon} ${categoryMeta.name}`;
+  $("roundLabel").textContent = `Pozycja ${state.round + 1} z ${state.roundCount}`;
   $("foodEmoji").textContent = state.currentItem?.emoji || "🍽️";
   $("foodName").textContent = state.currentItem?.name || "";
   $("currentBid").textContent = `${state.currentBid} 🪙`;
@@ -211,8 +292,9 @@ function renderResults(state) {
   const winnerIndex = ranking[0]?.index ?? null;
   const winnerName = winnerIndex === null ? "" : state.players[winnerIndex].name;
 
-  $("winner").innerHTML = `Największy obżartuch: ${winnerName}
-    <span class="dancing-pig" aria-label="Tańcząca świnka">🐷</span>`;
+  const categoryMeta = CATEGORY_META[state.category] || CATEGORY_META.mixed;
+  $("winner").innerHTML = `${categoryMeta.winnerTitle}: ${winnerName}
+    <span class="dancing-winner-icon" aria-label="${categoryMeta.winnerTitle}">${categoryMeta.winnerIcon}</span>`;
 
   const podiumOrder = ranking.slice(0, 3);
   const podiumClasses = ["first", "second", "third"];
@@ -221,7 +303,9 @@ function renderResults(state) {
   $("podium").innerHTML = podiumOrder.map(({ player, index }, place) => `
     <article class="podium-place ${podiumClasses[place]}">
       <div class="podium-medal">${podiumLabels[place]}</div>
-      <div class="podium-avatar">${index === winnerIndex ? '<span class="dancing-pig">🐷</span>' : player.isBot ? "🤖" : "👤"}</div>
+      <div class="podium-avatar">${index === winnerIndex
+        ? `<span class="dancing-winner-icon">${categoryMeta.winnerIcon}</span>`
+        : player.isBot ? "🤖" : "👤"}</div>
       <h3>${player.name}${player.isYou ? " (Ty)" : ""}</h3>
       <strong>${player.score} pkt</strong>
       <span>${player.items.length}/5 dań</span>
@@ -276,6 +360,13 @@ $("confirmLinkJoinBtn").addEventListener("click", joinFromInviteLink);
 $("linkPlayerName").addEventListener("keydown", event => {
   if (event.key === "Enter") joinFromInviteLink();
 });
+
+
+document.querySelectorAll(".category-tile").forEach(tile => {
+  tile.addEventListener("click", () => selectCategory(tile.dataset.category));
+});
+
+$("createCategoryRoomBtn").addEventListener("click", createSelectedCategoryRoom);
 
 $("gameMode").addEventListener("change", toggleMode);
 $("createBtn").addEventListener("click", () => {
@@ -350,3 +441,4 @@ if (roomFromLink && !session) {
   tryAutoJoinFromLink();
 }
 toggleMode();
+selectCategory("mixed");

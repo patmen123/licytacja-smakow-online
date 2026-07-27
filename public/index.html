@@ -32,17 +32,75 @@
       <h2>Utwórz grę</h2>
       <label>Twoje imię<input id="hostName" maxlength="18" value="Gracz 1"></label>
 
-      <label>Kategoria licytacji
-        <select id="auctionCategory">
-          <option value="mixed">Miks wszystkiego</option>
-          <option value="main">Dania główne</option>
-          <option value="dessert">Desery</option>
-          <option value="drink">Napoje</option>
-          <option value="snack">Przekąski</option>
-          <option value="job">Zawody</option>
-          <option value="vehicle">Pojazdy</option>
-        </select>
-      </label>
+      
+      <div class="category-picker">
+        <div class="category-picker-head">
+          <strong>Wybierz kategorię</strong>
+          <span id="selectedCategoryName">Miks wszystkiego</span>
+        </div>
+
+        <div id="categoryTiles" class="category-tiles">
+          <button type="button" class="category-tile selected" data-category="mixed">
+            <span class="category-icon">🎲</span>
+            <span class="category-title">Miks</span>
+            <span class="category-description">Wszystkie kategorie razem</span>
+            <span class="category-expand">Rozwiń</span>
+          </button>
+
+          <button type="button" class="category-tile" data-category="main">
+            <span class="category-icon">🍝</span>
+            <span class="category-title">Dania główne</span>
+            <span class="category-description">Pizza, sushi, ramen i inne</span>
+            <span class="category-expand">Rozwiń</span>
+          </button>
+
+          <button type="button" class="category-tile" data-category="dessert">
+            <span class="category-icon">🍰</span>
+            <span class="category-title">Desery</span>
+            <span class="category-description">Lody, ciasta i słodkości</span>
+            <span class="category-expand">Rozwiń</span>
+          </button>
+
+          <button type="button" class="category-tile" data-category="drink">
+            <span class="category-icon">🥤</span>
+            <span class="category-title">Napoje</span>
+            <span class="category-description">Kawa, soki i koktajle</span>
+            <span class="category-expand">Rozwiń</span>
+          </button>
+
+          <button type="button" class="category-tile" data-category="snack">
+            <span class="category-icon">🍿</span>
+            <span class="category-title">Przekąski</span>
+            <span class="category-description">Frytki, popcorn i nachosy</span>
+            <span class="category-expand">Rozwiń</span>
+          </button>
+
+          <button type="button" class="category-tile" data-category="job">
+            <span class="category-icon">🧑‍🚀</span>
+            <span class="category-title">Zawody</span>
+            <span class="category-description">Lekarz, pilot, programista i inne</span>
+            <span class="category-expand">Rozwiń</span>
+          </button>
+
+          <button type="button" class="category-tile" data-category="vehicle">
+            <span class="category-icon">🚗</span>
+            <span class="category-title">Pojazdy</span>
+            <span class="category-description">Samochody, pociągi i samoloty</span>
+            <span class="category-expand">Rozwiń</span>
+          </button>
+        </div>
+
+        <div id="categoryAction" class="category-action">
+          <div>
+            <strong id="categoryActionTitle">Miks wszystkiego</strong>
+            <p id="categoryActionDescription">W tej grze pojawią się elementy ze wszystkich kategorii.</p>
+          </div>
+          <button id="createCategoryRoomBtn" type="button" class="primary">Utwórz pokój w tej kategorii</button>
+        </div>
+
+        <input id="auctionCategory" type="hidden" value="mixed">
+      </div>
+
       <label>Tryb gry
         <select id="gameMode">
           <option value="online">Online — 2 do 4 graczy</option>
@@ -64,7 +122,7 @@
           <option value="3">3 komputery</option>
         </select>
       </label>
-      <button id="createBtn" class="primary">Utwórz grę</button>
+      <button id="createBtn" class="primary hidden" aria-hidden="true" tabindex="-1">Utwórz grę</button>
     </div>
 
     <div class="divider"><span>lub</span></div>
@@ -80,6 +138,7 @@
   <section id="waiting" class="card center hidden">
     <div class="loader">🍕</div>
     <h2>Pokój <span id="waitingCode"></span></h2>
+    <div id="waitingCategoryBadge" class="category-badge"></div>
     <p id="waitingPlayers"></p>
     <div id="waitingList" class="waiting-list"></div>
     <button id="shareBtn" class="primary">Skopiuj link zaproszenia</button>
@@ -103,7 +162,7 @@
 
   <section id="game" class="hidden">
     <div class="statusbar">
-      <span>Pokój <strong id="gameCode"></strong></span>
+      <span>Pokój <strong id="gameCode"></strong> · <span id="gameCategoryBadge"></span></span>
       <div class="status-actions"><span id="connection">Połączono</span><button id="leaveGameBtn" class="danger compact">Opuść grę</button></div>
     </div>
 
