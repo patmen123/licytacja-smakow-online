@@ -168,3 +168,18 @@ Na komputerach:
 - ekran lepiej wykorzystuje szerokość monitora.
 
 Na telefonach układ nadal zmienia się w prostą, pionową wersję.
+
+
+## Wersja 20 — nazewnictwo zależne od kategorii
+
+Interfejs używa teraz odpowiednich określeń:
+
+- dania główne: „dania”,
+- desery: „desery”,
+- napoje: „napoje”,
+- przekąski: „przekąski”,
+- zawody: „zawody”,
+- pojazdy: „pojazdy”,
+- miks: „elementy”.
+
+Zmiana obejmuje karty graczy, licznik 0/5, komunikat o pustej kolekcji, numer rundy, podium i podsumowanie.

@@ -341,7 +341,7 @@ function assignRemainingDishesIfOnlyOneHasSlots(room) {
   room.round += remaining.length;
   finishGame(
     room,
-    `${player.name} jako jedyny aktywny gracz miał wolne miejsca i otrzymał ${remaining.length} darmowych dań do kompletu 5.`
+    `${player.name} jako jedyny aktywny gracz miał wolne miejsca i otrzymał brakujące elementy do kompletu 5.`
   );
   return true;
 }
@@ -569,7 +569,7 @@ function resolveAuction(room) {
     const item = room.items[room.round];
 
     if (!hasFreeDishSlot(winner)) {
-      room.message = `${winner.name} ma już komplet 5 dań. Potrawa przepada.`;
+      room.message = `${winner.name} ma już komplet 5 elementów. Ta pozycja przepada.`;
       emitState(room);
       setTimeout(() => {
         if (rooms.get(room.code) === room && room.status === "playing") beginNextRound(room);
@@ -668,7 +668,7 @@ io.on("connection", socket => {
       leader: null,
       passed: players.map(() => false),
       message: mode === "bot"
-        ? "Wypełnij quiz smaków, aby rozpocząć grę z komputerem."
+        ? "Wypełnij quiz preferencji, aby rozpocząć grę z komputerem."
         : "Pokój gotowy. Zaproś od 1 do 3 dodatkowych graczy.",
       turnTimer: null,
       turnEndsAt: null
