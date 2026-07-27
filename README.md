@@ -195,3 +195,15 @@ Dodatkowe zabezpieczenia:
 - automatyczne rozdanie pomija wszystko, co już posiada którykolwiek gracz,
 - pula gry jest dodatkowo oczyszczana z powtarzających się nazw,
 - jeden element może trafić do graczy maksymalnie jeden raz w danej rozgrywce.
+
+
+## Wersja 22 — każdy kończy z kompletem 5/5
+
+Na końcu rozgrywki serwer sprawdza kolekcje wszystkich uczestników.
+
+Jeżeli jakieś elementy nie zostały wylicytowane, ponieważ wszyscy spasowali albo gra zakończyła się wcześniej:
+
+- niewylicytowane pozycje są rozdawane za 0 monet,
+- najpierw otrzymują je gracze z najmniejszą liczbą elementów,
+- każdy uczestnik jest uzupełniany do 5/5,
+- żaden element nie może zostać przyznany dwa razy.

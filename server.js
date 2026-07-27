@@ -357,7 +357,7 @@ function assignRemainingDishesIfOnlyOneHasSlots(room) {
   room.round = room.items.length;
   finishGame(
     room,
-    `${player.name} jako jedyny aktywny gracz miał wolne miejsca i otrzymał ${remaining.length} brakujących elementów do kompletu 5.`
+    `${player.name} jako jedyny aktywny gracz otrzymał brakujące elementy do kompletu 5.`
   );
   return true;
 }
@@ -372,13 +372,58 @@ function shouldFinishForBankruptcy(room) {
   return playersWithMoney(room).length <= 1;
 }
 
+
+function fillAllEmptySlots(room) {
+  const ownedNames = new Set(
+    room.players.flatMap(player =>
+      player.items.map(item => item.name.trim().toLowerCase())
+    )
+  );
+
+  const unclaimedItems = room.items.filter(
+    item => !ownedNames.has(item.name.trim().toLowerCase())
+  );
+
+  if (!unclaimedItems.length) return 0;
+
+  let assigned = 0;
+  let itemIndex = 0;
+
+  while (itemIndex < unclaimedItems.length) {
+    const playerWithFewestItems = room.players
+      .filter(player => hasFreeDishSlot(player))
+      .sort((a, b) => a.items.length - b.items.length)[0];
+
+    if (!playerWithFewestItems) break;
+
+    const item = unclaimedItems[itemIndex++];
+    const key = item.name.trim().toLowerCase();
+
+    if (ownedNames.has(key)) continue;
+
+    playerWithFewestItems.items.push({ ...item, price: 0 });
+    ownedNames.add(key);
+    assigned += 1;
+  }
+
+  return assigned;
+}
+
 function finishGame(room, message = "Koniec gry — poznajemy Największego Obżartucha!") {
   clearTurnTimer(room);
+
+  const automaticallyAssigned = fillAllEmptySlots(room);
+
   room.status = "finished";
   room.currentBid = 0;
   room.leader = null;
   room.turnEndsAt = null;
-  room.message = message;
+  room.round = room.items.length;
+
+  room.message = automaticallyAssigned > 0
+    ? `${message} Niewylicytowane elementy zostały rozdane za 0 monet, aby każdy miał komplet 5/5.`
+    : message;
+
   emitState(room);
 }
 
