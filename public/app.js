@@ -16,49 +16,70 @@ const CATEGORY_META = {
     icon: "🎲",
     description: "W tej grze pojawią się elementy ze wszystkich kategorii.",
     winnerIcon: "🐷",
-    winnerTitle: "Największy obżartuch"
+    winnerTitle: "Największy obżartuch",
+    slotLabel: "elementy",
+    emptyLabel: "Brak zdobytych elementów",
+    roundLabel: "Element"
   },
   main: {
     name: "Dania główne",
     icon: "🍝",
     description: "Licytuj dania główne: pizzę, sushi, ramen i wiele innych.",
     winnerIcon: "🐷",
-    winnerTitle: "Największy obżartuch"
+    winnerTitle: "Największy obżartuch",
+    slotLabel: "dania",
+    emptyLabel: "Brak zdobytych dań",
+    roundLabel: "Danie"
   },
   dessert: {
     name: "Desery",
     icon: "🍰",
     description: "Licytuj desery, ciasta, lody i inne słodkości.",
     winnerIcon: "🐷",
-    winnerTitle: "Największy obżartuch"
+    winnerTitle: "Największy obżartuch",
+    slotLabel: "desery",
+    emptyLabel: "Brak zdobytych deserów",
+    roundLabel: "Deser"
   },
   drink: {
     name: "Napoje",
     icon: "🥤",
     description: "Licytuj kawy, soki, koktajle i pozostałe napoje.",
     winnerIcon: "🐷",
-    winnerTitle: "Największy obżartuch"
+    winnerTitle: "Największy obżartuch",
+    slotLabel: "napoje",
+    emptyLabel: "Brak zdobytych napojów",
+    roundLabel: "Napój"
   },
   snack: {
     name: "Przekąski",
     icon: "🍿",
     description: "Licytuj przekąski: frytki, popcorn, nachosy i inne.",
     winnerIcon: "🐷",
-    winnerTitle: "Największy obżartuch"
+    winnerTitle: "Największy obżartuch",
+    slotLabel: "przekąski",
+    emptyLabel: "Brak zdobytych przekąsek",
+    roundLabel: "Przekąska"
   },
   job: {
     name: "Zawody",
     icon: "🧑‍🚀",
     description: "Licytuj zawody: lekarza, pilota, programistę i inne profesje.",
     winnerIcon: "🧑‍🚀",
-    winnerTitle: "Mistrz zawodów"
+    winnerTitle: "Mistrz zawodów",
+    slotLabel: "zawody",
+    emptyLabel: "Brak zdobytych zawodów",
+    roundLabel: "Zawód"
   },
   vehicle: {
     name: "Pojazdy",
     icon: "🚗",
     description: "Licytuj pojazdy: samochody, pociągi, samoloty i inne.",
     winnerIcon: "🚗",
-    winnerTitle: "Król pojazdów"
+    winnerTitle: "Król pojazdów",
+    slotLabel: "pojazdy",
+    emptyLabel: "Brak zdobytych pojazdów",
+    roundLabel: "Pojazd"
   }
 };
 
@@ -211,6 +232,8 @@ function renderQuiz(state) {
 }
 
 function renderPlayers(state) {
+  const categoryMeta = CATEGORY_META[state.category] || CATEGORY_META.mixed;
+
   $("playersGrid").innerHTML = state.players.map((player, index) => `
     <article class="card player ${index === state.turn ? "active" : ""} ${state.passed[index] ? "passed" : ""}">
       <div class="player-head">
@@ -220,12 +243,12 @@ function renderPlayers(state) {
       <div class="presence ${player.connected ? "online" : "offline"}">
         ● ${player.isBot ? "komputer" : player.connected ? "online" : "rozłączony"}
         ${state.passed[index] ? " · pas" : ""}
-        · dania ${player.items.length}/${state.maxDishesPerPlayer}
+        · ${categoryMeta.slotLabel} ${player.items.length}/${state.maxDishesPerPlayer}
       </div>
       <div class="items">
         ${player.items.length
           ? player.items.map(item => `<span class="chip" title="Cena: ${item.price}">${item.emoji} ${item.name}</span>`).join("")
-          : '<span class="empty">Brak zdobytych dań</span>'}
+          : `<span class="empty">${categoryMeta.emptyLabel}</span>`}
       </div>
     </article>
   `).join("");
@@ -250,7 +273,7 @@ function renderGame(state) {
   $("gameCode").textContent = state.code;
   const categoryMeta = CATEGORY_META[state.category] || CATEGORY_META.mixed;
   $("gameCategoryBadge").textContent = `${categoryMeta.icon} ${categoryMeta.name}`;
-  $("roundLabel").textContent = `Pozycja ${state.round + 1} z ${state.roundCount}`;
+  $("roundLabel").textContent = `${categoryMeta.roundLabel} ${state.round + 1} z ${state.roundCount}`;
   $("foodEmoji").textContent = state.currentItem?.emoji || "🍽️";
   $("foodName").textContent = state.currentItem?.name || "";
   $("currentBid").textContent = `${state.currentBid} 🪙`;
@@ -308,7 +331,7 @@ function renderResults(state) {
         : player.isBot ? "🤖" : "👤"}</div>
       <h3>${player.name}${player.isYou ? " (Ty)" : ""}</h3>
       <strong>${player.score} pkt</strong>
-      <span>${player.items.length}/5 dań</span>
+      <span>${player.items.length}/5 ${categoryMeta.slotLabel}</span>
     </article>
   `).join("");
 
@@ -318,7 +341,7 @@ function renderResults(state) {
       <p><strong>${player.score} punktów</strong>${player.isYou ? ` · zostało ${player.budget} monet` : ""}</p>
       ${player.items.length
         ? player.items.map(item => `<div class="result-line"><span>${item.emoji} ${item.name}</span><span>${item.value} pkt · ${item.price} 🪙</span></div>`).join("")
-        : '<p class="muted">Brak zdobytych dań</p>'}
+        : `<p class="muted">${categoryMeta.emptyLabel}</p>`}
     </article>
   `).join("");
 
