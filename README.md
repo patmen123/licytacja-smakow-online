@@ -155,3 +155,16 @@ Gospodarz wybiera kategorię przed utworzeniem pokoju. Quiz i pula licytowanych 
   - miks: tańcząca świnka.
 - Dla pojazdów zwycięzca otrzymuje tytuł „Król pojazdów”.
 - Dla zawodów zwycięzca otrzymuje tytuł „Mistrz zawodów”.
+
+
+## Wersja 19 — nowa nazwa i poprawiony układ
+
+Gra nazywa się teraz **Aukcyjna Arena**, ponieważ obejmuje jedzenie, zawody, pojazdy i kolejne kategorie.
+
+Na komputerach:
+- kategorie zajmują całą szerokość górnej części strony,
+- formularze tworzenia i dołączania są w równych kolumnach poniżej,
+- opis kategorii i przyciski nie nachodzą na siebie,
+- ekran lepiej wykorzystuje szerokość monitora.
+
+Na telefonach układ nadal zmienia się w prostą, pionową wersję.

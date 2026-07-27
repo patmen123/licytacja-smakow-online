@@ -891,5 +891,5 @@ setInterval(() => {
 }, 60_000).unref();
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Licytacja Smaków działa na porcie ${PORT}`);
+  console.log(`Aukcyjna Arena działa na porcie ${PORT}`);
 });

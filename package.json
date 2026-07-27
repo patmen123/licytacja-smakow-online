@@ -1,8 +1,8 @@
 {
-  "name": "licytacja-smakow-online",
+  "name": "aukcyjna-arena",
   "version": "1.0.0",
   "private": true,
-  "description": "Gra licytacyjna dla dwóch osób działająca online",
+  "description": "Aukcyjna gra online dla 2–4 graczy i komputerów",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
