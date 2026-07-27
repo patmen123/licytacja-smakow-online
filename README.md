@@ -140,3 +140,18 @@ Dodano dwie nowe kategorie:
 - **Pojazdy** — 20 unikalnych środków transportu.
 
 Gospodarz wybiera kategorię przed utworzeniem pokoju. Quiz i pula licytowanych obiektów korzystają wyłącznie z wybranej kategorii.
+
+
+## Wersja 18 — kafelki kategorii i ikony zwycięzców
+
+- Kategorie są pokazane jako interaktywne kafelki z ikoną i opisem.
+- Kliknięcie kafelka rozwija go i ustawia wybraną kategorię.
+- Z rozwiniętego kafelka można od razu utworzyć pokój w wybranej kategorii.
+- Kategoria pokoju jest widoczna w poczekalni i podczas gry.
+- Ikona zwycięzcy zależy od kategorii:
+  - jedzenie, desery, napoje i przekąski: tańcząca świnka,
+  - pojazdy: tańczący samochód,
+  - zawody: tańczący astronauta,
+  - miks: tańcząca świnka.
+- Dla pojazdów zwycięzca otrzymuje tytuł „Król pojazdów”.
+- Dla zawodów zwycięzca otrzymuje tytuł „Mistrz zawodów”.
