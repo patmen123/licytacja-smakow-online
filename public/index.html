@@ -110,13 +110,14 @@
         <label>Tryb gry
           <select id="gameMode">
             <option value="online">Online — 2 do 4 graczy</option>
+            <option value="tournament">Turniej — 4 zawodników</option>
             <option value="bot">Z komputerem</option>
           </select>
         </label>
 
         <div class="settings-row">
           <label>Budżet
-            <input id="budget" type="number" min="20" max="1000" value="100">
+            <input id="budget" type="number" min="1" max="1000" value="100">
           </label>
 
           <label id="maxPlayersLabel">Maksymalna liczba graczy
@@ -136,6 +137,7 @@
           </label>
         </div>
 
+        <p id="tournamentModeInfo" class="tournament-mode-info hidden">🏆 Turniej dla dokładnie 4 zawodników: dwa półfinały, mecz o 3. miejsce i finał.</p>
         <button id="createBtn" class="primary">Utwórz pokój</button>
         <button id="createCategoryRoomBtn" class="hidden" type="button" aria-hidden="true" tabindex="-1">Utwórz pokój</button>
       </section>
@@ -162,18 +164,52 @@
         <button id="joinBtn" class="secondary">Dołącz</button>
       </section>
     </div>
+
+    <section class="public-match-panel">
+      <div class="public-match-heading">
+        <span class="public-match-icon">🌍</span>
+        <div>
+          <h2>Graj z obcymi</h2>
+          <p>Serwer automatycznie znajdzie innych graczy. Kod pokoju nie jest potrzebny.</p>
+        </div>
+        <span id="publicCategoryPreview" class="category-badge">🎲 Miks wszystkiego</span>
+      </div>
+
+      <div class="public-match-controls">
+        <label>Twoja nazwa
+          <input id="publicPlayerName" maxlength="18" placeholder="Wpisz nazwę">
+        </label>
+
+        <label>Liczba graczy
+          <select id="publicPlayerCount">
+            <option value="2" selected>2 graczy — najszybciej</option>
+            <option value="3">3 graczy</option>
+            <option value="4">4 graczy</option>
+          </select>
+        </label>
+
+        <div class="public-budget-info">
+          <span>Wspólny budżet</span>
+          <strong>100 🪙</strong>
+        </div>
+
+        <button id="findPublicGameBtn" class="primary">Znajdź publiczną grę</button>
+      </div>
+
+      <p class="public-safety-note">Nie udostępniaj obcym osobom nazwiska, adresu ani innych danych osobowych.</p>
+    </section>
   </section>
 
   <section id="waiting" class="card center hidden">
     <div class="loader">🍕</div>
-    <h2>Pokój <span id="waitingCode"></span></h2>
+    <h2 id="waitingTitle">Pokój <span id="waitingCode"></span></h2>
     <div id="waitingCategoryBadge" class="category-badge"></div>
     <p id="waitingPlayers"></p>
     <div id="waitingList" class="waiting-list"></div>
     <button id="shareBtn" class="primary">Skopiuj link zaproszenia</button>
     <button id="startRoomBtn" class="primary hidden">Rozpocznij grę</button>
     <button id="leaveWaitingBtn" class="danger">Opuść pokój</button>
-    <p class="muted">Gospodarz może rozpocząć po dołączeniu minimum 2 osób.</p>
+    <p id="waitingHint" class="muted">Gospodarz może rozpocząć po dołączeniu minimum 2 osób.</p>
   </section>
 
   <section id="quizScreen" class="card quiz-screen hidden">
@@ -189,12 +225,29 @@
     <p id="quizWaiting" class="muted hidden">Gotowe. Czekamy na pozostałych graczy…</p>
   </section>
 
+
+  <section id="countdownScreen" class="card countdown-screen hidden">
+    <div class="countdown-label">Wszyscy są gotowi</div>
+    <div id="countdownNumber" class="countdown-number">3</div>
+    <div id="countdownMessage" class="countdown-message">Gra zaraz się rozpocznie</div>
+  </section>
+
+  <section id="tournamentBreakScreen" class="card tournament-break-screen hidden">
+    <div class="eyebrow">Turniej</div>
+    <div class="tournament-break-icon">🏆</div>
+    <h2 id="tournamentBreakTitle">Wynik meczu</h2>
+    <p id="tournamentBreakMessage"></p>
+    <div id="tournamentBracket" class="tournament-bracket"></div>
+    <p class="muted">Następny mecz rozpocznie się automatycznie.</p>
+  </section>
+
   <section id="game" class="hidden">
     <div class="statusbar">
       <span>Pokój <strong id="gameCode"></strong> · <span id="gameCategoryBadge"></span></span>
       <div class="status-actions"><span id="connection">Połączono</span><button id="leaveGameBtn" class="danger compact">Opuść grę</button></div>
     </div>
 
+    <div id="tournamentMatchBanner" class="tournament-match-banner hidden"></div>
     <div id="playersGrid" class="players-grid"></div>
 
     <article class="card auction">

@@ -541,3 +541,204 @@ button{border:0;border-radius:14px;padding:13px 17px;font-weight:900;cursor:poin
     padding:10px;
   }
 }
+
+
+/* Wersja 24 — publiczny matchmaking */
+.public-match-panel{
+  margin-top:24px;
+  padding-top:24px;
+  border-top:1px solid var(--border);
+}
+
+.public-match-heading{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:13px;
+  margin-bottom:16px;
+}
+
+.public-match-heading h2{
+  margin:0 0 4px;
+}
+
+.public-match-heading p{
+  margin:0;
+  color:var(--muted);
+  font-size:.88rem;
+}
+
+.public-match-icon{
+  display:grid;
+  place-items:center;
+  width:48px;
+  height:48px;
+  border:1px solid var(--border);
+  border-radius:15px;
+  background:#fff7ed;
+  font-size:1.45rem;
+}
+
+.public-match-controls{
+  display:grid;
+  grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto minmax(210px,.9fr);
+  gap:12px;
+  align-items:end;
+}
+
+.public-match-controls label{
+  margin:0;
+}
+
+.public-budget-info{
+  display:grid;
+  gap:4px;
+  min-height:49px;
+  padding:9px 13px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:#fffaf5;
+}
+
+.public-budget-info span{
+  color:var(--muted);
+  font-size:.76rem;
+  font-weight:800;
+}
+
+.public-budget-info strong{
+  color:var(--green);
+}
+
+.public-match-controls button{
+  min-height:49px;
+}
+
+.public-safety-note{
+  margin:12px 0 0;
+  color:var(--muted);
+  font-size:.78rem;
+  text-align:center;
+}
+
+@media(max-width:940px){
+  .public-match-controls{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .public-budget-info,
+  .public-match-controls button{
+    width:100%;
+  }
+}
+
+@media(max-width:620px){
+  .public-match-heading{
+    grid-template-columns:auto 1fr;
+  }
+
+  .public-match-heading .category-badge{
+    grid-column:1 / -1;
+    justify-self:start;
+    margin:0;
+  }
+
+  .public-match-controls{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* Wersja 25 — odliczanie 3, 2, 1 */
+.countdown-screen{
+  max-width:620px;
+  min-height:390px;
+  margin:0 auto;
+  padding:40px 24px;
+  display:grid;
+  place-content:center;
+  text-align:center;
+  overflow:hidden;
+}
+
+.countdown-label{
+  color:var(--dark);
+  font-size:.86rem;
+  font-weight:950;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+
+.countdown-number{
+  display:grid;
+  place-items:center;
+  width:190px;
+  height:190px;
+  margin:22px auto;
+  border:5px solid var(--border);
+  border-radius:50%;
+  background:#fff7ed;
+  color:var(--orange);
+  font-size:7rem;
+  font-weight:950;
+  line-height:1;
+  animation:countdown-pop .75s ease-in-out;
+}
+
+.countdown-number.start{
+  width:auto;
+  min-width:260px;
+  border-radius:34px;
+  padding:0 30px;
+  font-size:4.5rem;
+}
+
+.countdown-message{
+  color:var(--muted);
+  font-size:1.05rem;
+  font-weight:800;
+}
+
+@keyframes countdown-pop{
+  0%{transform:scale(.65);opacity:.25}
+  60%{transform:scale(1.1);opacity:1}
+  100%{transform:scale(1);opacity:1}
+}
+
+@media(max-width:520px){
+  .countdown-screen{
+    min-height:320px;
+    padding:28px 18px;
+  }
+
+  .countdown-number{
+    width:150px;
+    height:150px;
+    font-size:5.5rem;
+  }
+
+  .countdown-number.start{
+    min-width:220px;
+    font-size:3.6rem;
+  }
+}
+
+
+/* Wersja 26 — tryb turniejowy */
+.tournament-mode-info{margin:10px 0 0;padding:11px 13px;border:1px solid var(--border);border-radius:14px;background:#fff7ed;color:var(--dark);font-size:.84rem;font-weight:800}
+.tournament-match-banner{display:flex;justify-content:center;align-items:center;gap:14px;margin:0 auto 14px;padding:11px 15px;max-width:720px;border:1px solid var(--border);border-radius:16px;background:#fff7ed}
+.tournament-match-banner strong{color:var(--dark)}
+.player.tournament-spectator{opacity:.68;border-style:dashed}
+.tournament-break-screen{max-width:900px;margin:0 auto;padding:32px;text-align:center}
+.tournament-break-icon{margin:12px 0;font-size:4.5rem}
+.tournament-break-screen h2{margin:8px 0}
+.tournament-bracket{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:24px 0 18px;text-align:left}
+.bracket-match{display:grid;gap:7px;padding:13px;border:1px solid var(--border);border-radius:15px;background:#fffaf5}
+.bracket-match strong{color:var(--dark)}
+.bracket-match span,.bracket-match small{color:var(--muted)}
+.bracket-match.pending{opacity:.62;border-style:dashed}
+.tournament-ranking-stats{display:flex;flex-wrap:wrap;gap:8px}
+.tournament-ranking-stats span{padding:6px 9px;border:1px solid var(--border);border-radius:999px;background:#fff7ed;color:var(--muted);font-size:.8rem}
+.tournament-countdown{outline:3px solid rgba(249,115,22,.18)}
+@media(max-width:760px){.tournament-bracket{grid-template-columns:1fr 1fr}.tournament-match-banner{align-items:flex-start;flex-direction:column;gap:3px}}
+@media(max-width:480px){.tournament-bracket{grid-template-columns:1fr}.tournament-break-screen{padding:22px 15px}}
