@@ -207,3 +207,74 @@ Jeżeli jakieś elementy nie zostały wylicytowane, ponieważ wszyscy spasowali 
 - najpierw otrzymują je gracze z najmniejszą liczbą elementów,
 - każdy uczestnik jest uzupełniany do 5/5,
 - żaden element nie może zostać przyznany dwa razy.
+
+
+## Wersja 23 — poprawka budżetu
+
+Budżet wpisany przez gospodarza jest teraz zachowywany dokładnie.
+
+- wpisane 10 → każdy gracz zaczyna z 10 monetami,
+- wpisane 50 → każdy gracz zaczyna z 50 monetami,
+- minimalny budżet to 1 moneta,
+- maksymalny budżet to 1000 monet.
+
+Usunięto wcześniejsze automatyczne podnoszenie budżetu do 20 monet.
+
+
+## Wersja 24 — publiczny multiplayer z obcymi graczami
+
+Na ekranie głównym znajduje się sekcja **Graj z obcymi**.
+
+Działanie:
+
+1. Gracz wpisuje własną nazwę.
+2. Wybiera rozgrywkę dla 2, 3 albo 4 osób.
+3. Używana jest aktualnie zaznaczona kategoria.
+4. Serwer automatycznie łączy osoby o tych samych ustawieniach.
+5. Gdy zbierze się komplet, wszyscy przechodzą do quizu i gra zaczyna się bez kodu pokoju.
+
+Zasady publicznego matchmakingu:
+
+- wspólny budżet wynosi 100 monet,
+- prywatne pokoje i gra z komputerem nadal działają,
+- wyszukiwanie można anulować,
+- po meczu przycisk „Znajdź kolejnych graczy” rozpoczyna nowe wyszukiwanie,
+- publiczna rozgrywka nie ma czatu,
+- nazwy graczy są automatycznie rozróżniane, gdy dwie osoby wpiszą tę samą nazwę.
+
+
+## Wersja 25 — odliczanie przed startem
+
+Po zatwierdzeniu quizu przez wszystkich uczestników serwer wyświetla odliczanie:
+
+- 3,
+- 2,
+- 1,
+- START!
+
+Odliczanie działa przed:
+
+- pierwszą grą prywatną,
+- grą publiczną z obcymi,
+- grą przeciw komputerowi,
+- każdym rewanżem.
+
+Jeżeli ktoś rozłączy się podczas odliczania, start zostaje anulowany i gracze wracają do oczekiwania.
+
+
+## Wersja 26 — tryb turniejowy
+
+Dodano prywatny turniej dla dokładnie 4 zawodników.
+
+### Przebieg
+
+1. Półfinał 1: zawodnik 1 kontra zawodnik 2.
+2. Półfinał 2: zawodnik 3 kontra zawodnik 4.
+3. Mecz o 3. miejsce: przegrani półfinałów.
+4. Finał: zwycięzcy półfinałów.
+
+Każdy pojedynek to osobna gra 1 na 1 z pełnym budżetem i maksymalnie 5 elementami. Pozostali uczestnicy obserwują. Po każdym meczu pojawia się drabinka i automatycznie rusza kolejny etap.
+
+### Ranking końcowy
+
+Po finale wyświetlane są miejsca 1–4, podium, bilans zwycięstw i porażek, łączna liczba punktów oraz suma wydanych monet. Turniej można powtórzyć w tym samym pokoju po zatwierdzeniu rewanżu przez wszystkich czterech zawodników.

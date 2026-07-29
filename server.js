@@ -9,6 +9,7 @@ const { Server } = require("socket.io");
 const PORT = process.env.PORT || 3000;
 const TURN_MS = 10_000;
 const MAX_DISHES_PER_PLAYER = 5;
+const PUBLIC_MATCH_BUDGET = 100;
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 
 const app = express();
@@ -209,9 +210,11 @@ function randomBotQuiz(room) {
 }
 
 function applyQuizScores(room) {
+  const participants = room.mode === "tournament" ? activePlayers(room) : room.players;
+
   for (const item of room.items) {
     let score = 5;
-    for (const player of room.players) {
+    for (const player of participants) {
       if (!player?.quiz) continue;
       if (player.quiz.favorites.includes(item.name)) score += 2;
       if (player.quiz.dislikes.includes(item.name)) score -= 1;
@@ -222,6 +225,39 @@ function applyQuizScores(room) {
 
 function humanPlayers(room) {
   return room.players.filter(player => player && !player.isBot);
+}
+
+function activePlayerIndices(room) {
+  if (
+    room.mode === "tournament" &&
+    room.tournament &&
+    Array.isArray(room.tournament.currentPlayers)
+  ) {
+    return room.tournament.currentPlayers;
+  }
+
+  return room.players.map((_player, index) => index);
+}
+
+function activePlayers(room) {
+  return activePlayerIndices(room).map(index => room.players[index]);
+}
+
+function isActiveTournamentPlayer(room, index) {
+  return activePlayerIndices(room).includes(index);
+}
+
+function scoreForPlayer(player) {
+  return player.items.reduce((sum, item) => sum + item.value, 0);
+}
+
+function tournamentStageLabel(stage) {
+  return {
+    semifinal1: "Półfinał 1",
+    semifinal2: "Półfinał 2",
+    bronze: "Mecz o 3. miejsce",
+    final: "Finał"
+  }[stage] || "Turniej";
 }
 
 function connectedHumanCount(room) {
@@ -238,6 +274,7 @@ function publicState(room, viewerIndex = null) {
     mode: room.mode,
     category: room.category,
     maxPlayers: room.maxPlayers,
+    startingBudget: viewer ? viewer.initialBudget : null,
     maxDishesPerPlayer: MAX_DISHES_PER_PLAYER,
     hostIndex: room.hostIndex,
     viewerIndex,
@@ -252,7 +289,17 @@ function publicState(room, viewerIndex = null) {
     turn: room.turn,
     passed: room.passed,
     message: room.message,
+    countdownValue: room.countdownValue ?? null,
     turnEndsAt: room.turnEndsAt,
+    tournament: room.tournament ? {
+      complete: Boolean(room.tournament.complete),
+      stage: room.tournament.stage,
+      stageLabel: tournamentStageLabel(room.tournament.stage),
+      currentPlayers: room.tournament.currentPlayers || [],
+      nextPlayers: room.tournament.nextPlayers || [],
+      matches: room.tournament.matches || [],
+      ranking: room.tournament.ranking || null
+    } : null,
     quizFoods: categoryPool(room.category).map(({ name, emoji }) => ({ name, emoji })),
     players: room.players.map((player, index) => ({
       name: player.name,
@@ -268,11 +315,26 @@ function publicState(room, viewerIndex = null) {
       score: ended ? player.items.reduce((sum, item) => sum + item.value, 0) : null,
       quizSubmitted: Boolean(player.quiz),
       rematchReady: Boolean(player.rematchReady),
+      inCurrentMatch: isActiveTournamentPlayer(room, index),
+      tournamentStats: {
+        wins: player.tournamentWins || 0,
+        losses: player.tournamentLosses || 0,
+        points: player.tournamentPoints || 0,
+        spent: player.tournamentSpent || 0
+      },
       isYou: index === viewerIndex
     })),
-    canStart: room.status === "waiting" &&
+    canStart: (
+      room.mode === "online" &&
+      room.status === "waiting" &&
       viewerIndex === room.hostIndex &&
       room.players.length >= 2
+    ) || (
+      room.mode === "tournament" &&
+      room.status === "waiting" &&
+      viewerIndex === room.hostIndex &&
+      room.players.length === 4
+    )
   };
 }
 
@@ -291,6 +353,17 @@ function clearTurnTimer(room) {
   if (room.turnTimer) clearTimeout(room.turnTimer);
   room.turnTimer = null;
   room.turnEndsAt = null;
+}
+
+function clearCountdownTimer(room) {
+  if (room.countdownTimer) clearTimeout(room.countdownTimer);
+  room.countdownTimer = null;
+  room.countdownValue = null;
+}
+
+function clearTournamentTimer(room) {
+  if (room.tournamentTimer) clearTimeout(room.tournamentTimer);
+  room.tournamentTimer = null;
 }
 
 function roomForSocket(socket) {
@@ -315,14 +388,194 @@ function attachPlayer(socket, room, index) {
 }
 
 
+function uniquePlayerName(room, value, fallback) {
+  const base = cleanName(value, fallback);
+  const used = new Set(room.players.map(player => player.name.toLowerCase()));
+
+  if (!used.has(base.toLowerCase())) return base;
+
+  let suffix = 2;
+  while (used.has(`${base} ${suffix}`.toLowerCase())) suffix += 1;
+  return `${base} ${suffix}`.slice(0, 18);
+}
+
+function prepareRoomQuiz(room, message) {
+  room.roundCount = room.mode === "tournament"
+    ? 2 * MAX_DISHES_PER_PLAYER
+    : room.players.length * MAX_DISHES_PER_PLAYER;
+  room.items = makeItems(room.roundCount, room.category);
+  room.passed = room.players.map(() => false);
+  room.status = "quiz";
+  room.message = message;
+  emitState(room);
+}
+
+function findWaitingPublicRoom(category, maxPlayers) {
+  return [...rooms.values()].find(room =>
+    room.mode === "public" &&
+    room.status === "waiting" &&
+    room.category === category &&
+    room.maxPlayers === maxPlayers &&
+    room.players.length < room.maxPlayers
+  );
+}
+
+
+
+
+
+function resetTournamentStats(room) {
+  room.players.forEach(player => {
+    player.tournamentWins = 0;
+    player.tournamentLosses = 0;
+    player.tournamentPoints = 0;
+    player.tournamentSpent = 0;
+    player.items = [];
+    player.budget = player.initialBudget;
+    player.rematchReady = false;
+  });
+}
+
+function prepareTournamentMatch(room, stage, playerIndices) {
+  clearTurnTimer(room);
+  clearCountdownTimer(room);
+  clearTournamentTimer(room);
+
+  room.tournament.stage = stage;
+  room.tournament.currentPlayers = [...playerIndices];
+  room.tournament.nextPlayers = [];
+  room.roundCount = 2 * MAX_DISHES_PER_PLAYER;
+  room.items = makeItems(room.roundCount, room.category);
+  room.round = 0;
+  room.currentBid = 0;
+  room.leader = null;
+
+  room.players.forEach((player, index) => {
+    player.items = [];
+    player.budget = player.initialBudget;
+    player.rematchReady = false;
+  });
+
+  room.passed = room.players.map((_player, index) => !playerIndices.includes(index));
+  room.message = `${tournamentStageLabel(stage)}: ${room.players[playerIndices[0]].name} kontra ${room.players[playerIndices[1]].name}.`;
+}
+
+function initializeTournament(room) {
+  if (room.players.length !== 4) throw new Error("Turniej wymaga dokładnie 4 graczy.");
+
+  resetTournamentStats(room);
+  room.tournament = {
+    complete: false,
+    stage: "semifinal1",
+    currentPlayers: [0, 1],
+    nextPlayers: [],
+    matches: [],
+    semifinalWinners: [],
+    semifinalLosers: [],
+    bronzeWinner: null,
+    bronzeLoser: null,
+    ranking: null
+  };
+  prepareTournamentMatch(room, "semifinal1", [0, 1]);
+}
+
+function tournamentMatchWinner(room, playerAIndex, playerBIndex) {
+  const playerA = room.players[playerAIndex];
+  const playerB = room.players[playerBIndex];
+  const scoreA = scoreForPlayer(playerA);
+  const scoreB = scoreForPlayer(playerB);
+  if (scoreA !== scoreB) return scoreA > scoreB ? playerAIndex : playerBIndex;
+  if (playerA.budget !== playerB.budget) return playerA.budget > playerB.budget ? playerAIndex : playerBIndex;
+  return Math.min(playerAIndex, playerBIndex);
+}
+
+function scheduleTournamentMatch(room, stage, playerIndices, resultMessage) {
+  clearTurnTimer(room);
+  clearCountdownTimer(room);
+  clearTournamentTimer(room);
+  room.status = "tournament-break";
+  room.tournament.nextPlayers = [...playerIndices];
+  room.message = resultMessage;
+  emitState(room);
+
+  room.tournamentTimer = setTimeout(() => {
+    if (rooms.get(room.code) !== room || room.status !== "tournament-break") return;
+    prepareTournamentMatch(room, stage, playerIndices);
+    beginCountdown(room);
+  }, 3200);
+}
+
+function finishTournamentMatch(room) {
+  clearTurnTimer(room);
+  fillAllEmptySlots(room);
+
+  const [playerAIndex, playerBIndex] = room.tournament.currentPlayers;
+  const playerA = room.players[playerAIndex];
+  const playerB = room.players[playerBIndex];
+  const scoreA = scoreForPlayer(playerA);
+  const scoreB = scoreForPlayer(playerB);
+  const winnerIndex = tournamentMatchWinner(room, playerAIndex, playerBIndex);
+  const loserIndex = winnerIndex === playerAIndex ? playerBIndex : playerAIndex;
+  const winner = room.players[winnerIndex];
+  const loser = room.players[loserIndex];
+
+  playerA.tournamentPoints += scoreA;
+  playerB.tournamentPoints += scoreB;
+  playerA.tournamentSpent += playerA.initialBudget - playerA.budget;
+  playerB.tournamentSpent += playerB.initialBudget - playerB.budget;
+  winner.tournamentWins += 1;
+  loser.tournamentLosses += 1;
+
+  room.tournament.matches.push({
+    stage: room.tournament.stage,
+    label: tournamentStageLabel(room.tournament.stage),
+    players: [playerAIndex, playerBIndex],
+    scores: [scoreA, scoreB],
+    winner: winnerIndex,
+    loser: loserIndex
+  });
+
+  const winnerScore = winnerIndex === playerAIndex ? scoreA : scoreB;
+  const loserScore = winnerIndex === playerAIndex ? scoreB : scoreA;
+  const resultText = `${tournamentStageLabel(room.tournament.stage)}: ${winner.name} wygrywa ${winnerScore}:${loserScore}.`;
+
+  if (room.tournament.stage === "semifinal1") {
+    room.tournament.semifinalWinners[0] = winnerIndex;
+    room.tournament.semifinalLosers[0] = loserIndex;
+    scheduleTournamentMatch(room, "semifinal2", [2, 3], `${resultText} Za chwilę drugi półfinał.`);
+    return;
+  }
+  if (room.tournament.stage === "semifinal2") {
+    room.tournament.semifinalWinners[1] = winnerIndex;
+    room.tournament.semifinalLosers[1] = loserIndex;
+    scheduleTournamentMatch(room, "bronze", [room.tournament.semifinalLosers[0], room.tournament.semifinalLosers[1]], `${resultText} Za chwilę mecz o 3. miejsce.`);
+    return;
+  }
+  if (room.tournament.stage === "bronze") {
+    room.tournament.bronzeWinner = winnerIndex;
+    room.tournament.bronzeLoser = loserIndex;
+    scheduleTournamentMatch(room, "final", [room.tournament.semifinalWinners[0], room.tournament.semifinalWinners[1]], `${resultText} Za chwilę wielki finał.`);
+    return;
+  }
+
+  room.tournament.complete = true;
+  room.tournament.ranking = [winnerIndex, loserIndex, room.tournament.bronzeWinner, room.tournament.bronzeLoser];
+  room.status = "finished";
+  room.currentBid = 0;
+  room.leader = null;
+  room.turnEndsAt = null;
+  room.round = room.items.length;
+  room.message = `${resultText} Turniej zakończony.`;
+  emitState(room);
+}
 
 function hasFreeDishSlot(player) {
   return player.items.length < MAX_DISHES_PER_PLAYER;
 }
 
 function playersWithFreeSlots(room) {
-  return room.players
-    .map((player, index) => ({ player, index }))
+  return activePlayerIndices(room)
+    .map(index => ({ player: room.players[index], index }))
     .filter(({ player }) =>
       hasFreeDishSlot(player) &&
       player.budget > 0 &&
@@ -363,8 +616,8 @@ function assignRemainingDishesIfOnlyOneHasSlots(room) {
 }
 
 function playersWithMoney(room) {
-  return room.players
-    .map((player, index) => ({ player, index }))
+  return activePlayerIndices(room)
+    .map(index => ({ player: room.players[index], index }))
     .filter(({ player }) => player.budget > 0);
 }
 
@@ -374,8 +627,9 @@ function shouldFinishForBankruptcy(room) {
 
 
 function fillAllEmptySlots(room) {
+  const participants = activePlayers(room);
   const ownedNames = new Set(
-    room.players.flatMap(player =>
+    participants.flatMap(player =>
       player.items.map(item => item.name.trim().toLowerCase())
     )
   );
@@ -390,7 +644,7 @@ function fillAllEmptySlots(room) {
   let itemIndex = 0;
 
   while (itemIndex < unclaimedItems.length) {
-    const playerWithFewestItems = room.players
+    const playerWithFewestItems = participants
       .filter(player => hasFreeDishSlot(player))
       .sort((a, b) => a.items.length - b.items.length)[0];
 
@@ -412,6 +666,11 @@ function fillAllEmptySlots(room) {
 function finishGame(room, message = "Koniec gry — poznajemy Największego Obżartucha!") {
   clearTurnTimer(room);
 
+  if (room.mode === "tournament" && room.tournament && !room.tournament.complete) {
+    finishTournamentMatch(room);
+    return;
+  }
+
   const automaticallyAssigned = fillAllEmptySlots(room);
 
   room.status = "finished";
@@ -428,8 +687,9 @@ function finishGame(room, message = "Koniec gry — poznajemy Największego Obż
 }
 
 function markBankruptPlayersPassed(room) {
+  const activeSet = new Set(activePlayerIndices(room));
   room.players.forEach((player, index) => {
-    if (player.budget <= 0) room.passed[index] = true;
+    if (!activeSet.has(index) || player.budget <= 0) room.passed[index] = true;
   });
 }
 
@@ -448,7 +708,12 @@ function nextActiveIndex(room, afterIndex, excludeLeader = true) {
 }
 
 function autoPassUnablePlayers(room) {
+  const activeSet = new Set(activePlayerIndices(room));
   room.players.forEach((player, index) => {
+    if (!activeSet.has(index)) {
+      room.passed[index] = true;
+      return;
+    }
     if (player.budget <= 0 || !hasFreeDishSlot(player)) {
       room.passed[index] = true;
       return;
@@ -484,7 +749,7 @@ function advanceAuction(room, afterIndex) {
 
   const activeChallengers = room.players
     .map((_player, index) => index)
-    .filter(index => !room.passed[index] && index !== room.leader);
+    .filter(index => activePlayerIndices(room).includes(index) && !room.passed[index] && index !== room.leader);
 
   if (room.leader !== null && activeChallengers.length === 0) {
     resolveAuction(room);
@@ -557,19 +822,59 @@ function botMove(room, index) {
   handleBid(room, index, Math.min(bot.budget, minBid + increment - 1));
 }
 
+
+function beginCountdown(room, isRematch = false) {
+  clearTurnTimer(room);
+  clearCountdownTimer(room);
+
+  room.status = "countdown";
+  room.countdownValue = 3;
+  room.message = room.mode === "tournament" && room.tournament
+    ? `${tournamentStageLabel(room.tournament.stage)}: ${room.players[room.tournament.currentPlayers[0]].name} kontra ${room.players[room.tournament.currentPlayers[1]].name}.`
+    : isRematch
+      ? "Rewanż rozpocznie się za chwilę."
+      : "Wszyscy są gotowi. Gra zaraz się rozpocznie.";
+  emitState(room);
+
+  const tick = () => {
+    if (rooms.get(room.code) !== room || room.status !== "countdown") return;
+
+    if (room.countdownValue > 1) {
+      room.countdownValue -= 1;
+      emitState(room);
+      room.countdownTimer = setTimeout(tick, 1000);
+      return;
+    }
+
+    room.countdownValue = 0;
+    room.message = "START!";
+    emitState(room);
+
+    room.countdownTimer = setTimeout(() => {
+      if (rooms.get(room.code) !== room || room.status !== "countdown") return;
+      clearCountdownTimer(room);
+      startGame(room, isRematch);
+    }, 700);
+  };
+
+  room.countdownTimer = setTimeout(tick, 1000);
+}
+
 function startGame(room, isRematch = false) {
   clearTurnTimer(room);
+  clearCountdownTimer(room);
   room.players.forEach(player => {
     player.rematchReady = false;
     if (player.isBot && !player.quiz) player.quiz = randomBotQuiz(room);
   });
 
-  if (!isRematch) applyQuizScores(room);
+  if (!isRematch || room.mode === "tournament") applyQuizScores(room);
   room.status = "playing";
   room.round = 0;
   room.currentBid = 0;
   room.leader = null;
-  room.passed = room.players.map(() => false);
+  const activeSet = new Set(activePlayerIndices(room));
+  room.passed = room.players.map((_player, index) => !activeSet.has(index));
   markBankruptPlayersPassed(room);
   const starting = nextActiveIndex(room, room.players.length - 1, false);
 
@@ -651,6 +956,12 @@ function resolveAuction(room) {
 }
 
 function resetForRematch(room) {
+  if (room.mode === "tournament") {
+    initializeTournament(room);
+    beginCountdown(room, true);
+    return;
+  }
+
   room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
   room.items = makeItems(room.roundCount, room.category);
   room.players.forEach(player => {
@@ -659,16 +970,99 @@ function resetForRematch(room) {
     player.rematchReady = false;
   });
   applyQuizScores(room);
-  startGame(room, true);
+  beginCountdown(room, true);
 }
 
 io.on("connection", socket => {
-  socket.on("create-room", (payload = {}) => {
-    const budget = Math.max(20, Math.min(1000, Math.floor(Number(payload.budget) || 100)));
-    const mode = payload.mode === "bot" ? "bot" : "online";
+  socket.on("find-public-game", (payload = {}) => {
+    if (socket.data.roomCode) {
+      return sendError(socket, "Najpierw opuść obecną grę.");
+    }
+
     const allowedCategories = new Set(["mixed", "main", "dessert", "drink", "snack", "job", "vehicle"]);
     const category = allowedCategories.has(payload.category) ? payload.category : "mixed";
     const maxPlayers = Math.max(2, Math.min(4, Math.floor(Number(payload.maxPlayers) || 2)));
+
+    let room = findWaitingPublicRoom(category, maxPlayers);
+
+    if (!room) {
+      const code = randomCode();
+      room = {
+        code,
+        mode: "public",
+        category,
+        maxPlayers,
+        hostIndex: 0,
+        status: "waiting",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        roundCount: maxPlayers * MAX_DISHES_PER_PLAYER,
+        items: makeItems(maxPlayers * MAX_DISHES_PER_PLAYER, category),
+        players: [],
+        round: 0,
+        turn: 0,
+        currentBid: 0,
+        leader: null,
+        passed: [],
+        message: "Szukamy pozostałych graczy…",
+        turnTimer: null,
+        turnEndsAt: null,
+        countdownTimer: null,
+        countdownValue: null
+      };
+      rooms.set(code, room);
+    }
+
+    const playerToken = makeToken();
+    const index = room.players.length;
+    const playerName = uniquePlayerName(room, payload.name, `Gracz ${index + 1}`);
+
+    room.players.push({
+      name: playerName,
+      budget: PUBLIC_MATCH_BUDGET,
+      initialBudget: PUBLIC_MATCH_BUDGET,
+      items: [],
+      quiz: null,
+      rematchReady: false,
+      isBot: false,
+      token: playerToken,
+      socketId: null
+    });
+    room.passed.push(false);
+
+    attachPlayer(socket, room, index);
+    socket.emit("matchmaking-joined", {
+      code: room.code,
+      playerToken,
+      playerIndex: index
+    });
+
+    if (room.players.length >= room.maxPlayers) {
+      prepareRoomQuiz(
+        room,
+        `Znaleziono ${room.players.length} graczy. Wypełnijcie quiz preferencji.`
+      );
+      return;
+    }
+
+    room.message = `Szukamy graczy: ${room.players.length}/${room.maxPlayers}.`;
+    emitState(room);
+  });
+
+  socket.on("create-room", (payload = {}) => {
+    const requestedBudget = Math.floor(Number(payload.budget));
+    const budget = Number.isFinite(requestedBudget)
+      ? Math.max(1, Math.min(1000, requestedBudget))
+      : 100;
+    const requestedMode = String(payload.mode || "online");
+    const mode = ["online", "bot", "tournament"].includes(requestedMode)
+      ? requestedMode
+      : "online";
+    const allowedCategories = new Set(["mixed", "main", "dessert", "drink", "snack", "job", "vehicle"]);
+    const category = allowedCategories.has(payload.category) ? payload.category : "mixed";
+    const maxPlayers = mode === "tournament"
+      ? 4
+      : Math.max(2, Math.min(4, Math.floor(Number(payload.maxPlayers) || 2)));
     const botCount = mode === "bot"
       ? Math.max(1, Math.min(3, Math.floor(Number(payload.botCount) || 1)))
       : 0;
@@ -721,9 +1115,15 @@ io.on("connection", socket => {
       passed: players.map(() => false),
       message: mode === "bot"
         ? "Wypełnij quiz preferencji, aby rozpocząć grę z komputerem."
-        : "Pokój gotowy. Zaproś od 1 do 3 dodatkowych graczy.",
+        : mode === "tournament"
+          ? "Turniej wymaga dokładnie 4 zawodników. Wyślij im kod lub link."
+          : "Pokój gotowy. Zaproś od 1 do 3 dodatkowych graczy.",
       turnTimer: null,
-      turnEndsAt: null
+      turnEndsAt: null,
+      countdownTimer: null,
+      countdownValue: null,
+      tournamentTimer: null,
+      tournament: null
     };
 
     rooms.set(code, room);
@@ -736,14 +1136,19 @@ io.on("connection", socket => {
     const code = String(payload.code || "").trim().toUpperCase();
     const room = rooms.get(code);
     if (!room) return sendError(socket, "Nie znaleziono pokoju o takim kodzie.");
-    if (room.mode !== "online") return sendError(socket, "To jest pokój gry z komputerem.");
+    if (!["online", "tournament"].includes(room.mode)) {
+      return sendError(socket, "Do tego pokoju nie można dołączyć kodem.");
+    }
 
-    if (room.status === "finished") {
+    if (room.status === "finished" && room.mode === "online") {
       room.players = room.players.filter(player => player.isBot || player.socketId);
       room.passed = room.players.map(() => false);
       room.hostIndex = 0;
       room.status = "waiting";
       room.message = "Pokój jest ponownie otwarty. Czekamy na graczy.";
+    }
+    if (room.status === "finished" && room.mode === "tournament") {
+      return sendError(socket, "Ten turniej już się zakończył.");
     }
 
     if (room.status !== "waiting") return sendError(socket, "Ta gra już się rozpoczęła.");
@@ -752,7 +1157,7 @@ io.on("connection", socket => {
     const playerToken = makeToken();
     const index = room.players.length;
     room.players.push({
-      name: cleanName(payload.name, `Gracz ${index + 1}`),
+      name: uniquePlayerName(room, payload.name, `Gracz ${index + 1}`),
       budget: room.players[0].initialBudget,
       initialBudget: room.players[0].initialBudget,
       items: [],
@@ -776,14 +1181,17 @@ io.on("connection", socket => {
     const { room, index } = found;
     if (index !== room.hostIndex) return sendError(socket, "Tylko gospodarz może rozpocząć grę.");
     if (room.status !== "waiting") return;
+    if (room.mode === "tournament") {
+      if (room.players.length !== 4) return sendError(socket, "Turniej wymaga dokładnie 4 zawodników.");
+      prepareRoomQuiz(room, "Wszyscy czterej zawodnicy wypełniają quiz preferencji przed rozpoczęciem turnieju.");
+      return;
+    }
     if (room.players.length < 2) return sendError(socket, "Potrzeba co najmniej 2 graczy.");
 
-    room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
-    room.roundCount = room.players.length * MAX_DISHES_PER_PLAYER;
-  room.items = makeItems(room.roundCount, room.category);
-    room.status = "quiz";
-    room.message = `Wszyscy gracze wypełniają quiz smaków. W tej grze będzie ${room.roundCount} dań.`;
-    emitState(room);
+    prepareRoomQuiz(
+      room,
+      `Wszyscy gracze wypełniają quiz preferencji. W tej grze będzie ${room.players.length * MAX_DISHES_PER_PLAYER} elementów.`
+    );
   });
 
   socket.on("submit-quiz", (payload = {}) => {
@@ -811,7 +1219,8 @@ io.on("connection", socket => {
     room.message = `${room.players[index].name} ukończył quiz.`;
 
     if (humanPlayers(room).every(player => player.quiz)) {
-      startGame(room);
+      if (room.mode === "tournament") initializeTournament(room);
+      beginCountdown(room);
       return;
     }
     emitState(room);
@@ -824,6 +1233,7 @@ io.on("connection", socket => {
     const amount = Number(payload?.amount);
 
     if (room.status !== "playing") return sendError(socket, "Gra nie jest aktywna.");
+    if (!activePlayerIndices(room).includes(index)) return sendError(socket, "W tej rundzie jesteś obserwatorem.");
     if (room.turn !== index) return sendError(socket, "Teraz ruch ma inny gracz.");
     if (!Number.isInteger(amount)) return sendError(socket, "Oferta musi być pełną liczbą monet.");
     if (amount <= room.currentBid) return sendError(socket, `Oferta musi być wyższa niż ${room.currentBid}.`);
@@ -836,6 +1246,7 @@ io.on("connection", socket => {
     const found = roomForSocket(socket);
     if (!found) return;
     const { room, index } = found;
+    if (!activePlayerIndices(room).includes(index)) return sendError(socket, "W tej rundzie jesteś obserwatorem.");
     if (room.turn !== index) return sendError(socket, "Teraz ruch ma inny gracz.");
     handlePass(room, index);
   });
@@ -867,6 +1278,12 @@ io.on("connection", socket => {
     attachPlayer(socket, room, index);
     socket.emit("reconnected-player", { code, playerIndex: index });
 
+    if (room.mode === "tournament" && room.status === "tournament-break" && room.tournament && room.tournament.currentPlayers.every(playerIndex => room.players[playerIndex].isBot || room.players[playerIndex].socketId)) {
+      room.message = "Wszyscy zawodnicy aktualnego meczu wrócili. Wznawiamy odliczanie.";
+      emitState(room);
+      room.tournamentTimer = setTimeout(() => beginCountdown(room), 800);
+      return;
+    }
     if (room.status === "playing") {
       room.message = `${room.players[index].name} wrócił do gry i dołączy od następnej licytacji.`;
     } else {
@@ -895,10 +1312,19 @@ io.on("connection", socket => {
       room.players.splice(index, 1);
       room.passed.splice(index, 1);
       if (index === room.hostIndex && room.players.length) room.hostIndex = 0;
-      if (room.players.every(p => p.isBot) || room.players.length === 0) rooms.delete(room.code);
-      else emitState(room);
+
+      if (room.players.every(p => p.isBot) || room.players.length === 0) {
+        rooms.delete(room.code);
+      } else {
+        room.message = room.mode === "public"
+          ? `Szukamy graczy: ${room.players.length}/${room.maxPlayers}.`
+          : `${player.name} opuścił poczekalnię.`;
+        emitState(room);
+      }
     } else if (connectedHumanCount(room) === 0) {
       clearTurnTimer(room);
+      clearCountdownTimer(room);
+      clearTournamentTimer(room);
       rooms.delete(room.code);
     } else {
       room.message = `${player.name} opuścił grę.`;
@@ -915,7 +1341,35 @@ io.on("connection", socket => {
     const { room, index } = found;
     if (room.players[index].socketId === socket.id) {
       room.players[index].socketId = null;
+
+      if (room.mode === "public" && room.status === "waiting") {
+        room.players.splice(index, 1);
+        room.passed.splice(index, 1);
+
+        if (room.players.length === 0) {
+          rooms.delete(room.code);
+        } else {
+          room.hostIndex = 0;
+          room.message = `Szukamy graczy: ${room.players.length}/${room.maxPlayers}.`;
+          emitState(room);
+        }
+        return;
+      }
+
       room.message = `${room.players[index].name} stracił połączenie i będzie pomijany.`;
+
+      if (room.status === "countdown") {
+        clearCountdownTimer(room);
+        if (room.mode === "tournament") {
+          room.status = "tournament-break";
+          room.message = `${room.players[index].name} rozłączył się. Turniej czeka na jego powrót.`;
+        } else {
+          room.status = "quiz";
+          room.message = `${room.players[index].name} rozłączył się. Odliczanie anulowane.`;
+        }
+        emitState(room);
+        return;
+      }
 
       if (room.status === "playing") {
         room.passed[index] = true;
@@ -937,6 +1391,8 @@ setInterval(() => {
   for (const [code, room] of rooms) {
     if (now - room.updatedAt > ROOM_TTL_MS) {
       clearTurnTimer(room);
+      clearCountdownTimer(room);
+      clearTournamentTimer(room);
       rooms.delete(code);
     }
   }
