@@ -10,6 +10,7 @@ let autoJoinAttempted = false;
 let pendingInviteCode = null;
 let timerAnimation = null;
 let pendingPublicRequeue = null;
+let deferredInstallPrompt = null;
 
 const CATEGORY_META = {
   mixed: {
@@ -528,6 +529,172 @@ $("publicPlayerName").addEventListener("keydown", event => {
   if (event.key === "Enter") findPublicGame();
 });
 
+
+function currentFeedbackContext() {
+  return {
+    category: latestState?.category || selectedCategory || "nieznana",
+    mode: latestState?.mode || $("gameMode")?.value || "nieznany"
+  };
+}
+
+function setFeedbackStatus(message, isError = false) {
+  $("feedbackStatus").textContent = message;
+  $("feedbackStatus").classList.remove("hidden", "error", "success");
+  $("feedbackStatus").classList.add(isError ? "error" : "success");
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+
+  const selectedRating = document.querySelector(
+    'input[name="feedbackRating"]:checked'
+  );
+
+  const payload = {
+    nickname: $("feedbackNickname").value.trim(),
+    rating: selectedRating ? Number(selectedRating.value) : 0,
+    liked: $("feedbackLiked").value.trim(),
+    suggestions: $("feedbackSuggestions").value.trim(),
+    ...currentFeedbackContext()
+  };
+
+  if (!payload.rating) {
+    setFeedbackStatus("Wybierz ocenę od 1 do 5 gwiazdek.", true);
+    return;
+  }
+
+  if (!payload.liked && !payload.suggestions) {
+    setFeedbackStatus("Napisz, co Ci się podoba albo co warto poprawić.", true);
+    return;
+  }
+
+  $("submitFeedbackBtn").disabled = true;
+  $("submitFeedbackBtn").textContent = "Wysyłanie…";
+
+  try {
+    const response = await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.message || "Nie udało się wysłać opinii.");
+
+    setFeedbackStatus(result.message || "Dziękujemy za opinię!");
+    $("feedbackForm").reset();
+    $("likedCounter").textContent = "0";
+    $("suggestionsCounter").textContent = "0";
+  } catch (error) {
+    setFeedbackStatus(error.message || "Nie udało się wysłać opinii.", true);
+  } finally {
+    $("submitFeedbackBtn").disabled = false;
+    $("submitFeedbackBtn").textContent = "Wyślij opinię";
+  }
+}
+
+
+$("feedbackForm").addEventListener("submit", submitFeedback);
+$("feedbackLiked").addEventListener("input", () => {
+  $("likedCounter").textContent = String($("feedbackLiked").value.length);
+});
+$("feedbackSuggestions").addEventListener("input", () => {
+  $("suggestionsCounter").textContent = String($("feedbackSuggestions").value.length);
+});
+
+
+function isStandaloneApp() {
+  return window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+}
+
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function installPromptDismissedRecently() {
+  const dismissedAt = Number(localStorage.getItem("arenaInstallDismissedAt") || 0);
+  return dismissedAt && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000;
+}
+
+function updateInstallPanel() {
+  const panel = $("installAppPanel");
+  if (!panel) return;
+
+  if (isStandaloneApp() || installPromptDismissedRecently()) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  const ios = isIosDevice();
+
+  if (deferredInstallPrompt) {
+    $("installAppBtn").textContent = "Zainstaluj aplikację";
+    $("iosInstallInstructions").classList.add("hidden");
+    panel.classList.remove("hidden");
+    return;
+  }
+
+  if (ios) {
+    $("installAppBtn").textContent = "Pokaż instrukcję";
+    panel.classList.remove("hidden");
+    return;
+  }
+
+  panel.classList.add("hidden");
+}
+
+async function installMobileApp() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice.catch(() => null);
+    deferredInstallPrompt = null;
+    updateInstallPanel();
+    return;
+  }
+
+  if (isIosDevice()) {
+    $("iosInstallInstructions").classList.toggle("hidden");
+  }
+}
+
+function updateOnlineStatus() {
+  $("offlineBanner").classList.toggle("hidden", navigator.onLine);
+}
+
+function registerArenaServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js")
+      .then(registration => registration.update())
+      .catch(error => console.warn("Nie udało się uruchomić trybu aplikacji:", error));
+  });
+}
+
+window.addEventListener("beforeinstallprompt", event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  updateInstallPanel();
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  $("installAppPanel")?.classList.add("hidden");
+  toast("Aplikacja została zainstalowana.");
+});
+
+window.addEventListener("online", updateOnlineStatus);
+window.addEventListener("offline", updateOnlineStatus);
+
+
+
+$("installAppBtn").addEventListener("click", installMobileApp);
+$("dismissInstallBtn").addEventListener("click", () => {
+  localStorage.setItem("arenaInstallDismissedAt", String(Date.now()));
+  $("installAppPanel").classList.add("hidden");
+});
+
 $("gameMode").addEventListener("change", toggleMode);
 $("createBtn").addEventListener("click", () => {
   socket.emit("create-room", {
@@ -635,3 +802,6 @@ if (roomFromLink && !session) {
 }
 toggleMode();
 selectCategory("mixed");
+updateOnlineStatus();
+updateInstallPanel();
+registerArenaServiceWorker();

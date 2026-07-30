@@ -742,3 +742,157 @@ button{border:0;border-radius:14px;padding:13px 17px;font-weight:900;cursor:poin
 .tournament-countdown{outline:3px solid rgba(249,115,22,.18)}
 @media(max-width:760px){.tournament-bracket{grid-template-columns:1fr 1fr}.tournament-match-banner{align-items:flex-start;flex-direction:column;gap:3px}}
 @media(max-width:480px){.tournament-bracket{grid-template-columns:1fr}.tournament-break-screen{padding:22px 15px}}
+
+
+/* Wersja 27 — formularz opinii */
+.feedback-section{width:min(1120px,100%);margin:30px auto 0;padding:26px}
+.feedback-heading{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px}
+.feedback-heading-icon{display:grid;place-items:center;width:48px;height:48px;flex:0 0 48px;border:1px solid var(--border);border-radius:15px;background:#fff7ed;font-size:1.45rem}
+.feedback-heading h2{margin:4px 0 5px}.feedback-heading p{margin:0;color:var(--muted)}
+.feedback-form{display:grid;gap:18px}.feedback-top-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.8fr);gap:18px;align-items:end}
+.optional{color:var(--muted);font-size:.78rem;font-weight:700}
+.rating-fieldset{min-width:0;margin:0;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:#fffaf5}
+.rating-fieldset legend{padding:0 6px;font-weight:900}.star-rating{display:flex;flex-direction:row-reverse;justify-content:flex-end;gap:4px}
+.star-rating input{position:absolute;opacity:0;pointer-events:none}.star-rating label{margin:0;color:#d7c2ae;font-size:2.1rem;line-height:1;cursor:pointer;transition:transform .12s ease,color .12s ease}
+.star-rating label:hover,.star-rating label:hover~label,.star-rating input:checked~label{color:#f59e0b}.star-rating label:hover{transform:scale(1.12)}
+.feedback-textareas{display:grid;grid-template-columns:1fr 1fr;gap:16px}.feedback-textareas label{position:relative;margin:0}
+.feedback-textareas textarea{width:100%;min-height:125px;resize:vertical;padding:13px 14px 28px;border:1px solid var(--border);border-radius:14px;background:#fffaf5;color:var(--text);font:inherit;outline:none}
+.feedback-textareas textarea:focus{border-color:var(--orange);box-shadow:0 0 0 4px rgba(249,115,22,.14)}
+.feedback-counter{position:absolute;right:10px;bottom:8px;color:var(--muted);font-size:.72rem;font-weight:800}
+.feedback-actions{display:flex;justify-content:space-between;align-items:center;gap:16px}.feedback-actions p{margin:0;color:var(--muted);font-size:.8rem}.feedback-actions button{min-width:180px}
+.feedback-status{margin:0;padding:11px 13px;border-radius:13px;font-weight:850;text-align:center}.feedback-status.success{border:1px solid #bbf7d0;background:#f0fdf4;color:#166534}.feedback-status.error{border:1px solid #fecdd3;background:#fff1f2;color:var(--red)}
+@media(max-width:760px){.feedback-section{margin-top:22px;padding:20px}.feedback-top-row,.feedback-textareas{grid-template-columns:1fr}.feedback-actions{align-items:stretch;flex-direction:column}.feedback-actions button{width:100%}}
+
+
+/* Wersja 28 — instalowana aplikacja mobilna PWA */
+html{
+  min-height:100%;
+  background:#fff7ed;
+}
+
+body{
+  min-height:100%;
+  padding-top:env(safe-area-inset-top);
+  padding-right:env(safe-area-inset-right);
+  padding-bottom:env(safe-area-inset-bottom);
+  padding-left:env(safe-area-inset-left);
+  overscroll-behavior-y:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+button,
+.category-tile{
+  touch-action:manipulation;
+}
+
+.install-app-panel{
+  position:relative;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:14px;
+  margin:0 auto 18px;
+  padding:14px 16px;
+  border-color:#fed7aa;
+  background:linear-gradient(135deg,#fff7ed,#ffffff);
+}
+
+.install-app-icon{
+  width:58px;
+  height:58px;
+  border-radius:15px;
+  box-shadow:0 8px 20px rgba(124,45,18,.14);
+}
+
+.install-app-copy{
+  min-width:0;
+}
+
+.install-app-copy strong{
+  display:block;
+  margin-bottom:3px;
+  color:var(--dark);
+}
+
+.install-app-copy p{
+  margin:0;
+  color:var(--muted);
+  font-size:.84rem;
+}
+
+.install-app-copy .ios-install-instructions{
+  margin-top:7px;
+  color:var(--dark);
+  font-weight:750;
+}
+
+.install-app-button{
+  white-space:nowrap;
+}
+
+.install-dismiss{
+  display:grid;
+  place-items:center;
+  width:34px;
+  height:34px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  color:var(--muted);
+  font-size:1.6rem;
+  line-height:1;
+}
+
+.install-dismiss:hover{
+  background:#ffedd5;
+}
+
+.offline-banner{
+  position:sticky;
+  top:calc(8px + env(safe-area-inset-top));
+  z-index:100;
+  width:min(760px,calc(100% - 20px));
+  margin:0 auto 14px;
+  padding:10px 14px;
+  border:1px solid #fca5a5;
+  border-radius:13px;
+  background:#fff1f2;
+  color:#9f1239;
+  font-size:.82rem;
+  font-weight:850;
+  text-align:center;
+  box-shadow:0 8px 24px rgba(127,29,29,.12);
+}
+
+@media(display-mode:standalone){
+  header{
+    padding-top:8px;
+  }
+
+  .shell{
+    padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+@media(max-width:680px){
+  .install-app-panel{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    align-items:start;
+  }
+
+  .install-app-button{
+    grid-column:1 / -1;
+    width:100%;
+  }
+
+  .install-dismiss{
+    grid-column:3;
+    grid-row:1;
+  }
+
+  .install-app-icon{
+    width:52px;
+    height:52px;
+  }
+}

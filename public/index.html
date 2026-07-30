@@ -2,8 +2,18 @@
 <html lang="pl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f97316">
+  <meta name="color-scheme" content="light">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Aukcyjna Arena">
+  <meta name="application-name" content="Aukcyjna Arena">
+  <meta name="description" content="Wieloosobowa gra licytacyjna na telefon i komputer.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
   <title>Aukcyjna Arena</title>
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -14,6 +24,26 @@
     <h1>🎯 Aukcyjna Arena</h1>
     <p>Wybierz kategorię i licytuj jedzenie, zawody, pojazdy oraz inne przedmioty.</p>
   </header>
+
+  <section id="installAppPanel" class="install-app-panel card hidden">
+    <img src="/icons/icon-192.png" alt="" class="install-app-icon">
+    <div class="install-app-copy">
+      <strong>Zainstaluj Aukcyjną Arenę na telefonie</strong>
+      <p id="installAppDescription">Uruchamiaj grę z ekranu głównego jak zwykłą aplikację.</p>
+      <p id="iosInstallInstructions" class="ios-install-instructions hidden">
+        Na iPhonie otwórz menu udostępniania w Safari i wybierz „Dodaj do ekranu początkowego”.
+      </p>
+    </div>
+    <button id="installAppBtn" type="button" class="primary install-app-button">
+      Zainstaluj aplikację
+    </button>
+    <button id="dismissInstallBtn" type="button" class="install-dismiss"
+      aria-label="Ukryj informację o aplikacji">×</button>
+  </section>
+
+  <div id="offlineBanner" class="offline-banner hidden">
+    Brak internetu — możesz przeglądać ekran aplikacji, ale gra online wymaga połączenia.
+  </div>
 
   <p id="autoJoinInfo" class="auto-join-info hidden">Dołączanie do pokoju…</p>
 
@@ -283,6 +313,66 @@
       <button id="leaveAfterGameBtn" class="danger">Opuść pokój</button>
     </div>
     <p id="rematchWaiting" class="muted hidden">Czekamy na pozostałych graczy…</p>
+  </section>
+
+
+  <section id="feedbackSection" class="feedback-section card">
+    <div class="feedback-heading">
+      <span class="feedback-heading-icon">💬</span>
+      <div>
+        <div class="eyebrow">Twoja opinia</div>
+        <h2>Pomóż rozwijać Aukcyjną Arenę</h2>
+        <p>Napisz, co Ci się podoba, co warto zmienić albo jaką kategorię dodać.</p>
+      </div>
+    </div>
+
+    <form id="feedbackForm" class="feedback-form">
+      <div class="feedback-top-row">
+        <label>
+          Nazwa gracza <span class="optional">(opcjonalnie)</span>
+          <input id="feedbackNickname" maxlength="24" placeholder="np. Licytator99">
+        </label>
+
+        <fieldset class="rating-fieldset">
+          <legend>Ocena gry</legend>
+          <div class="star-rating" aria-label="Ocena od 1 do 5">
+            <input type="radio" name="feedbackRating" id="rating5" value="5">
+            <label for="rating5" title="5 gwiazdek">★</label>
+            <input type="radio" name="feedbackRating" id="rating4" value="4">
+            <label for="rating4" title="4 gwiazdki">★</label>
+            <input type="radio" name="feedbackRating" id="rating3" value="3">
+            <label for="rating3" title="3 gwiazdki">★</label>
+            <input type="radio" name="feedbackRating" id="rating2" value="2">
+            <label for="rating2" title="2 gwiazdki">★</label>
+            <input type="radio" name="feedbackRating" id="rating1" value="1">
+            <label for="rating1" title="1 gwiazdka">★</label>
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="feedback-textareas">
+        <label>
+          Co podoba Ci się w grze?
+          <textarea id="feedbackLiked" maxlength="500" rows="4"
+            placeholder="Np. podoba mi się licytacja na czas i tryb turniejowy."></textarea>
+          <span class="feedback-counter"><span id="likedCounter">0</span>/500</span>
+        </label>
+
+        <label>
+          Co warto poprawić lub dodać?
+          <textarea id="feedbackSuggestions" maxlength="700" rows="4"
+            placeholder="Np. dodałbym kategorię sport albo krótszy czas ruchu."></textarea>
+          <span class="feedback-counter"><span id="suggestionsCounter">0</span>/700</span>
+        </label>
+      </div>
+
+      <div class="feedback-actions">
+        <p>Nie wpisuj danych osobowych, adresu ani numeru telefonu.</p>
+        <button id="submitFeedbackBtn" type="submit" class="primary">Wyślij opinię</button>
+      </div>
+
+      <p id="feedbackStatus" class="feedback-status hidden" aria-live="polite"></p>
+    </form>
   </section>
 
   <div id="toast" class="toast hidden"></div>
