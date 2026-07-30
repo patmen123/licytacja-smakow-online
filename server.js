@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("path");
+const fs = require("fs");
 const crypto = require("crypto");
 const express = require("express");
 const http = require("http");
@@ -16,9 +17,130 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: false } });
 
+app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+const FEEDBACK_FILE = process.env.FEEDBACK_FILE || path.join(__dirname, "feedback.jsonl");
+const FEEDBACK_ADMIN_KEY = process.env.FEEDBACK_ADMIN_KEY || "";
+
+function cleanFeedbackText(value, maxLength) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, maxLength);
+}
+
+function appendFeedback(entry) {
+  fs.appendFileSync(FEEDBACK_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+function readFeedbackEntries() {
+  if (!fs.existsSync(FEEDBACK_FILE)) return [];
+
+  return fs.readFileSync(FEEDBACK_FILE, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map(line => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function csvCell(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+app.post("/api/feedback", (req, res) => {
+  const rating = Math.floor(Number(req.body?.rating));
+  const nickname = cleanFeedbackText(req.body?.nickname, 24);
+  const liked = cleanFeedbackText(req.body?.liked, 500);
+  const suggestions = cleanFeedbackText(req.body?.suggestions, 700);
+  const category = cleanFeedbackText(req.body?.category, 30);
+  const mode = cleanFeedbackText(req.body?.mode, 30);
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ ok: false, message: "Wybierz ocenę od 1 do 5." });
+  }
+
+  if (!liked && !suggestions) {
+    return res.status(400).json({
+      ok: false,
+      message: "Napisz, co Ci się podoba albo co warto poprawić."
+    });
+  }
+
+  const entry = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    nickname: nickname || "Anonim",
+    rating,
+    liked,
+    suggestions,
+    category,
+    mode
+  };
+
+  try {
+    appendFeedback(entry);
+    console.log("Nowa opinia:", {
+      id: entry.id,
+      nickname: entry.nickname,
+      rating: entry.rating
+    });
+    return res.status(201).json({ ok: true, message: "Dziękujemy za opinię!" });
+  } catch (error) {
+    console.error("Nie udało się zapisać opinii:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Nie udało się zapisać opinii. Spróbuj ponownie."
+    });
+  }
+});
+
+app.get("/api/feedback/export", (req, res) => {
+  if (!FEEDBACK_ADMIN_KEY || req.query.key !== FEEDBACK_ADMIN_KEY) {
+    return res.status(403).json({ ok: false, message: "Brak dostępu." });
+  }
+
+  const rows = readFeedbackEntries();
+  const header = [
+    "data",
+    "nazwa",
+    "ocena",
+    "co_sie_podoba",
+    "sugestie",
+    "kategoria",
+    "tryb"
+  ];
+
+  const csv = [
+    header.map(csvCell).join(","),
+    ...rows.map(entry => [
+      entry.createdAt,
+      entry.nickname,
+      entry.rating,
+      entry.liked,
+      entry.suggestions,
+      entry.category,
+      entry.mode
+    ].map(csvCell).join(","))
+  ].join("\n");
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="opinie-aukcyjna-arena.csv"'
+  );
+  res.send(`\uFEFF${csv}`);
+});
+
 
 const AUCTION_ITEMS = [
   { name: "Pizza", emoji: "🍕", category: "main" },

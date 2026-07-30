@@ -278,3 +278,60 @@ Każdy pojedynek to osobna gra 1 na 1 z pełnym budżetem i maksymalnie 5 elemen
 ### Ranking końcowy
 
 Po finale wyświetlane są miejsca 1–4, podium, bilans zwycięstw i porażek, łączna liczba punktów oraz suma wydanych monet. Turniej można powtórzyć w tym samym pokoju po zatwierdzeniu rewanżu przez wszystkich czterech zawodników.
+
+
+## Wersja 27 — opinie graczy
+
+Na dole strony znajduje się formularz opinii z oceną 1–5, polem na pochwały i polem na sugestie.
+
+Opinie są zapisywane przez serwer w pliku `feedback.jsonl`.
+
+### Pobieranie opinii jako CSV
+
+W Renderze dodaj zmienną środowiskową:
+
+```text
+FEEDBACK_ADMIN_KEY=wybrane_tajne_haslo
+```
+
+Następnie otwórz:
+
+```text
+https://TWOJ-ADRES.onrender.com/api/feedback/export?key=wybrane_tajne_haslo
+```
+
+Przeglądarka pobierze plik `opinie-aukcyjna-arena.csv`.
+
+Uwaga: zwykły system plików Render może zostać wyczyszczony po restarcie lub wdrożeniu. Do trwałego przechowywania potrzebny jest Persistent Disk albo zewnętrzna baza danych.
+
+
+## Wersja 28 — aplikacja na telefon (PWA)
+
+Strona jest teraz instalowaną aplikacją internetową PWA.
+
+### Co otrzymuje gracz
+
+- ikonę Aukcyjnej Areny na ekranie głównym telefonu,
+- uruchamianie w osobnym oknie bez zwykłego paska przeglądarki,
+- ekran dopasowany do bezpiecznych obszarów telefonu,
+- podstawowe pliki aplikacji zapisane w pamięci urządzenia,
+- informację o utracie połączenia,
+- przycisk instalacji na obsługiwanych telefonach.
+
+Rozgrywka wieloosobowa nadal wymaga internetu, ponieważ pokoje, licytacje i turnieje działają na serwerze.
+
+### Instalacja
+
+Po wdrożeniu aktualizacji na Renderze należy otworzyć stronę na telefonie.
+
+- Android: użyć widocznego przycisku „Zainstaluj aplikację”.
+- iPhone/iPad: otworzyć stronę w Safari, użyć menu udostępniania i wybrać dodanie do ekranu początkowego.
+
+### Nowe pliki
+
+- `public/manifest.webmanifest`
+- `public/service-worker.js`
+- `public/icons/icon-192.png`
+- `public/icons/icon-512.png`
+- `public/icons/apple-touch-icon.png`
+- `public/icons/favicon-32.png`
