@@ -335,3 +335,102 @@ Po wdrożeniu aktualizacji na Renderze należy otworzyć stronę na telefonie.
 - `public/icons/icon-512.png`
 - `public/icons/apple-touch-icon.png`
 - `public/icons/favicon-32.png`
+
+
+## Wersja 29 — opinie wysyłane na e-mail
+
+Formularz opinii nie zapisuje już danych w pliku `feedback.jsonl`.
+Po zatwierdzeniu formularza serwer wysyła wiadomość bezpośrednio na
+adres właściciela gry przez usługę Resend.
+
+E-mail zawiera:
+
+- ocenę od 1 do 5,
+- nazwę gracza,
+- datę,
+- wybraną kategorię,
+- tryb gry,
+- informację, co podoba się graczowi,
+- sugestie i uwagi.
+
+### Zmienne środowiskowe w Renderze
+
+```text
+RESEND_API_KEY=re_...
+FEEDBACK_TO_EMAIL=twoj-adres@example.com
+FEEDBACK_FROM_EMAIL=Aukcyjna Arena <onboarding@resend.dev>
+```
+
+`FEEDBACK_FROM_EMAIL` jest opcjonalne. Bez własnej zweryfikowanej domeny
+można użyć adresu testowego `onboarding@resend.dev`, wysyłając wiadomości
+na adres właściciela konta Resend.
+
+Formularz ma proste zabezpieczenie antyspamowe:
+
+- maksymalnie jedna opinia na minutę z jednego adresu IP,
+- maksymalnie dziesięć opinii na godzinę z jednego adresu IP.
+
+
+## Wersja 30 — feedback przez istniejącą skrzynkę SMTP
+
+Usunięto zależność od Resend. Formularz opinii wysyła wiadomości przez
+serwer SMTP istniejącej skrzynki właściciela gry, np. Gmail lub Outlook.
+
+Nowa zależność projektu:
+
+```text
+nodemailer
+```
+
+Dane logowania są odczytywane wyłącznie ze zmiennych środowiskowych
+Rendera:
+
+```text
+SMTP_HOST
+SMTP_PORT
+SMTP_SECURE
+SMTP_USER
+SMTP_PASS
+FEEDBACK_TO_EMAIL
+FEEDBACK_FROM_EMAIL
+```
+
+Do Gmaila należy używać hasła do aplikacji, a nie zwykłego hasła konta.
+
+
+## Wersja 31 — poprawka powrotu do gry na telefonie
+
+Naprawiono zawieszanie licytacji po zamknięciu przeglądarki, przełączeniu
+jej w tło albo powrocie do aplikacji PWA.
+
+- gracz rozłączony podczas swojego ruchu automatycznie pasuje,
+- kolejka przechodzi dalej bez oczekiwania w nieskończoność,
+- serwer kontroluje wygasłe timery co sekundę,
+- po powrocie aplikacja pobiera aktualny stan pokoju,
+- synchronizacja działa po odzyskaniu internetu, fokusie i wybudzeniu strony,
+- klient prosi o aktualizację również wtedy, gdy lokalny licznik osiągnie zero,
+- zaktualizowano pamięć podręczną PWA, aby telefon pobrał nowe pliki.
+
+
+## Wersja 32 — tryb wydajności dla słabszych urządzeń
+
+Dodano automatyczny tryb lekki, który domyślnie włącza się na telefonach,
+urządzeniach z mniejszą ilością pamięci, słabszym procesorem, włączonym
+oszczędzaniem danych lub ograniczeniem animacji.
+
+Najważniejsze optymalizacje:
+
+- timer nie odświeża już interfejsu około 60 razy na sekundę,
+- w trybie lekkim timer aktualizuje się tylko dwa razy na sekundę,
+- usunięto kosztowny efekt rozmycia wszystkich kart,
+- na telefonach wyłączono ciężkie cienie i filtr emoji,
+- animacje i przejścia są wyłączane w trybie lekkim,
+- karty graczy nie są ponownie tworzone przy identycznym stanie,
+- aplikacja nie zapisuje ponownie tekstu w DOM, gdy wartość się nie zmieniła,
+- serwer nie wysyła całej listy quizu podczas każdej licytacji,
+- połączenie próbuje najpierw użyć WebSocket,
+- formularz opinii poza ekranem korzysta z opóźnionego renderowania,
+- podniesiono wersję pamięci PWA do v32.
+
+Przycisk pod tytułem strony pozwala ręcznie przełączać tryb lekki i pełne
+efekty. Wybrane ustawienie jest zapamiętywane na urządzeniu.

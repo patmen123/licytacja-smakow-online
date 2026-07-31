@@ -1,8 +1,8 @@
 "use strict";
 
 const path = require("path");
-const fs = require("fs");
 const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -20,8 +20,33 @@ const io = new Server(server, { cors: { origin: false } });
 app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-const FEEDBACK_FILE = process.env.FEEDBACK_FILE || path.join(__dirname, "feedback.jsonl");
-const FEEDBACK_ADMIN_KEY = process.env.FEEDBACK_ADMIN_KEY || "";
+const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
+const SMTP_PORT = Math.max(1, Number(process.env.SMTP_PORT) || 465);
+const SMTP_SECURE =
+  String(process.env.SMTP_SECURE || "true").toLowerCase() === "true";
+const SMTP_USER = process.env.SMTP_USER || "";
+const SMTP_PASS = process.env.SMTP_PASS || "";
+const FEEDBACK_TO_EMAIL = process.env.FEEDBACK_TO_EMAIL || SMTP_USER;
+const FEEDBACK_FROM_EMAIL =
+  process.env.FEEDBACK_FROM_EMAIL ||
+  (SMTP_USER ? `Aukcyjna Arena <${SMTP_USER}>` : "");
+
+const feedbackTransporter = nodemailer.createTransport({
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_SECURE,
+  auth: SMTP_USER && SMTP_PASS
+    ? {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+      }
+    : undefined,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000
+});
+
+const feedbackRateLimits = new Map();
 
 function cleanFeedbackText(value, maxLength) {
   return String(value || "")
@@ -30,34 +55,126 @@ function cleanFeedbackText(value, maxLength) {
     .slice(0, maxLength);
 }
 
-function appendFeedback(entry) {
-  fs.appendFileSync(FEEDBACK_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function readFeedbackEntries() {
-  if (!fs.existsSync(FEEDBACK_FILE)) return [];
+function feedbackRateLimit(req) {
+  const now = Date.now();
+  const key = String(req.ip || req.socket?.remoteAddress || "unknown");
+  const hourAgo = now - 60 * 60 * 1000;
+  const recent = (feedbackRateLimits.get(key) || [])
+    .filter(timestamp => timestamp > hourAgo);
 
-  return fs.readFileSync(FEEDBACK_FILE, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map(line => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
+  if (recent.length >= 10) {
+    feedbackRateLimits.set(key, recent);
+    return {
+      allowed: false,
+      message: "Wysłano zbyt wiele opinii. Spróbuj ponownie później."
+    };
+  }
+
+  const latest = recent.at(-1);
+  if (latest && now - latest < 60 * 1000) {
+    feedbackRateLimits.set(key, recent);
+    return {
+      allowed: false,
+      message: "Odczekaj chwilę przed wysłaniem kolejnej opinii."
+    };
+  }
+
+  recent.push(now);
+  feedbackRateLimits.set(key, recent);
+  return { allowed: true };
 }
 
-function csvCell(value) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+async function sendFeedbackEmail(entry) {
+  if (
+    !SMTP_HOST ||
+    !SMTP_USER ||
+    !SMTP_PASS ||
+    !FEEDBACK_TO_EMAIL ||
+    !FEEDBACK_FROM_EMAIL
+  ) {
+    const error = new Error(
+      "Brakuje konfiguracji SMTP w ustawieniach serwera."
+    );
+    error.code = "EMAIL_NOT_CONFIGURED";
+    throw error;
+  }
+
+  const stars = "★".repeat(entry.rating) + "☆".repeat(5 - entry.rating);
+  const subject = `Nowa opinia ${entry.rating}/5 — Aukcyjna Arena`;
+
+  const text = [
+    "Nowa opinia o grze Aukcyjna Arena",
+    "",
+    `Ocena: ${entry.rating}/5 ${stars}`,
+    `Nazwa gracza: ${entry.nickname}`,
+    `Data: ${entry.createdAt}`,
+    `Kategoria: ${entry.category || "nie podano"}`,
+    `Tryb gry: ${entry.mode || "nie podano"}`,
+    "",
+    "Co podoba się graczowi:",
+    entry.liked || "Nie podano.",
+    "",
+    "Co warto poprawić lub dodać:",
+    entry.suggestions || "Nie podano.",
+    "",
+    `Identyfikator opinii: ${entry.id}`
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#292524">
+      <div style="padding:22px;border-radius:18px;background:#fff7ed;border:1px solid #fed7aa">
+        <h1 style="margin:0 0 8px;color:#9a3412">Nowa opinia o Aukcyjnej Arenie</h1>
+        <p style="margin:0;font-size:24px;color:#f59e0b">${escapeHtml(stars)}</p>
+      </div>
+
+      <table style="width:100%;margin:20px 0;border-collapse:collapse">
+        <tr><td style="padding:8px;font-weight:bold">Ocena</td><td style="padding:8px">${entry.rating}/5</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Gracz</td><td style="padding:8px">${escapeHtml(entry.nickname)}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Data</td><td style="padding:8px">${escapeHtml(entry.createdAt)}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Kategoria</td><td style="padding:8px">${escapeHtml(entry.category || "nie podano")}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Tryb</td><td style="padding:8px">${escapeHtml(entry.mode || "nie podano")}</td></tr>
+      </table>
+
+      <h2 style="color:#9a3412">Co podoba się graczowi?</h2>
+      <div style="padding:14px;border-radius:12px;background:#f5f5f4;white-space:pre-wrap">${escapeHtml(entry.liked || "Nie podano.")}</div>
+
+      <h2 style="color:#9a3412">Co warto poprawić lub dodać?</h2>
+      <div style="padding:14px;border-radius:12px;background:#f5f5f4;white-space:pre-wrap">${escapeHtml(entry.suggestions || "Nie podano.")}</div>
+
+      <p style="margin-top:20px;color:#78716c;font-size:12px">
+        Identyfikator: ${escapeHtml(entry.id)}
+      </p>
+    </div>
+  `;
+
+  const info = await feedbackTransporter.sendMail({
+    from: FEEDBACK_FROM_EMAIL,
+    to: FEEDBACK_TO_EMAIL,
+    replyTo: SMTP_USER,
+    subject,
+    text,
+    html
+  });
+
+  return {
+    id: info.messageId || null,
+    accepted: info.accepted || []
+  };
 }
 
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-app.post("/api/feedback", (req, res) => {
+app.post("/api/feedback", async (req, res) => {
   const rating = Math.floor(Number(req.body?.rating));
   const nickname = cleanFeedbackText(req.body?.nickname, 24);
   const liked = cleanFeedbackText(req.body?.liked, 500);
@@ -66,7 +183,10 @@ app.post("/api/feedback", (req, res) => {
   const mode = cleanFeedbackText(req.body?.mode, 30);
 
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return res.status(400).json({ ok: false, message: "Wybierz ocenę od 1 do 5." });
+    return res.status(400).json({
+      ok: false,
+      message: "Wybierz ocenę od 1 do 5."
+    });
   }
 
   if (!liked && !suggestions) {
@@ -76,9 +196,21 @@ app.post("/api/feedback", (req, res) => {
     });
   }
 
+  const limit = feedbackRateLimit(req);
+  if (!limit.allowed) {
+    return res.status(429).json({
+      ok: false,
+      message: limit.message
+    });
+  }
+
   const entry = {
     id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
+    createdAt: new Date().toLocaleString("pl-PL", {
+      timeZone: "Europe/Warsaw",
+      dateStyle: "long",
+      timeStyle: "medium"
+    }),
     nickname: nickname || "Anonim",
     rating,
     liked,
@@ -88,59 +220,30 @@ app.post("/api/feedback", (req, res) => {
   };
 
   try {
-    appendFeedback(entry);
-    console.log("Nowa opinia:", {
+    const email = await sendFeedbackEmail(entry);
+
+    console.log("Opinia wysłana na e-mail:", {
       id: entry.id,
-      nickname: entry.nickname,
+      emailId: email?.id || null,
       rating: entry.rating
     });
-    return res.status(201).json({ ok: true, message: "Dziękujemy za opinię!" });
+
+    return res.status(201).json({
+      ok: true,
+      message: "Dziękujemy! Opinia została wysłana."
+    });
   } catch (error) {
-    console.error("Nie udało się zapisać opinii:", error);
-    return res.status(500).json({
+    console.error("Nie udało się wysłać opinii na e-mail:", error);
+
+    const notConfigured = error?.code === "EMAIL_NOT_CONFIGURED";
+    return res.status(notConfigured ? 503 : 502).json({
       ok: false,
-      message: "Nie udało się zapisać opinii. Spróbuj ponownie."
+      message: notConfigured
+        ? "Formularz opinii nie ma jeszcze ustawionych danych poczty SMTP."
+        : "Nie udało się wysłać opinii. Spróbuj ponownie później."
     });
   }
 });
-
-app.get("/api/feedback/export", (req, res) => {
-  if (!FEEDBACK_ADMIN_KEY || req.query.key !== FEEDBACK_ADMIN_KEY) {
-    return res.status(403).json({ ok: false, message: "Brak dostępu." });
-  }
-
-  const rows = readFeedbackEntries();
-  const header = [
-    "data",
-    "nazwa",
-    "ocena",
-    "co_sie_podoba",
-    "sugestie",
-    "kategoria",
-    "tryb"
-  ];
-
-  const csv = [
-    header.map(csvCell).join(","),
-    ...rows.map(entry => [
-      entry.createdAt,
-      entry.nickname,
-      entry.rating,
-      entry.liked,
-      entry.suggestions,
-      entry.category,
-      entry.mode
-    ].map(csvCell).join(","))
-  ].join("\n");
-
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader(
-    "Content-Disposition",
-    'attachment; filename="opinie-aukcyjna-arena.csv"'
-  );
-  res.send(`\uFEFF${csv}`);
-});
-
 
 const AUCTION_ITEMS = [
   { name: "Pizza", emoji: "🍕", category: "main" },
@@ -413,6 +516,7 @@ function publicState(room, viewerIndex = null) {
     message: room.message,
     countdownValue: room.countdownValue ?? null,
     turnEndsAt: room.turnEndsAt,
+    turnDurationMs: TURN_MS,
     tournament: room.tournament ? {
       complete: Boolean(room.tournament.complete),
       stage: room.tournament.stage,
@@ -422,7 +526,9 @@ function publicState(room, viewerIndex = null) {
       matches: room.tournament.matches || [],
       ranking: room.tournament.ranking || null
     } : null,
-    quizFoods: categoryPool(room.category).map(({ name, emoji }) => ({ name, emoji })),
+    quizFoods: room.status === "quiz"
+      ? categoryPool(room.category).map(({ name, emoji }) => ({ name, emoji }))
+      : [],
     players: room.players.map((player, index) => ({
       name: player.name,
       budget: index === viewerIndex ? player.budget : null,
@@ -909,11 +1015,12 @@ function handleBid(room, index, amount) {
 }
 
 function handlePass(room, index, timedOut = false) {
-  if (room.status !== "playing" || room.turn !== index || room.passed[index]) return;
+  if (room.status !== "playing" || room.turn !== index) return;
+
   clearTurnTimer(room);
   room.passed[index] = true;
   room.message = timedOut
-    ? `${room.players[index].name} nie zdążył i automatycznie pasuje.`
+    ? `${room.players[index].name} nie zdążył lub stracił połączenie i automatycznie pasuje.`
     : `${room.players[index].name} pasuje.`;
   advanceAuction(room, index);
 }
@@ -1414,6 +1521,27 @@ io.on("connection", socket => {
     emitState(room);
   });
 
+  socket.on("sync-state", () => {
+    const found = roomForSocket(socket);
+    if (!found) return;
+
+    const { room, index } = found;
+
+    if (
+      room.status === "playing" &&
+      room.turn === index &&
+      (
+        room.passed[index] ||
+        (room.turnEndsAt && room.turnEndsAt <= Date.now())
+      )
+    ) {
+      handlePass(room, index, true);
+      return;
+    }
+
+    socket.emit("state", publicState(room, index));
+  });
+
   socket.on("leave-room", () => {
     const found = roomForSocket(socket);
     if (!found) {
@@ -1494,10 +1622,10 @@ io.on("connection", socket => {
       }
 
       if (room.status === "playing") {
-        room.passed[index] = true;
         if (room.turn === index) {
           handlePass(room, index, true);
         } else {
+          room.passed[index] = true;
           autoPassUnablePlayers(room);
           emitState(room);
         }
@@ -1507,6 +1635,21 @@ io.on("connection", socket => {
     }
   });
 });
+
+setInterval(() => {
+  const now = Date.now();
+
+  for (const room of rooms.values()) {
+    if (
+      room.status === "playing" &&
+      Number.isInteger(room.turn) &&
+      room.turnEndsAt &&
+      now >= room.turnEndsAt + 250
+    ) {
+      handlePass(room, room.turn, true);
+    }
+  }
+}, 1000).unref();
 
 setInterval(() => {
   const now = Date.now();
