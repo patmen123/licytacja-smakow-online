@@ -1,6 +1,9 @@
 "use strict";
 
-const socket = io();
+const socket = io({
+  transports: ["websocket", "polling"],
+  rememberUpgrade: true
+});
 const $ = id => document.getElementById(id);
 
 let latestState = null;
@@ -11,6 +14,12 @@ let pendingInviteCode = null;
 let timerAnimation = null;
 let pendingPublicRequeue = null;
 let deferredInstallPrompt = null;
+let lastExpiredTimerSyncAt = 0;
+let visibleScreen = null;
+let lastPlayersSignature = "";
+let lastTimerText = "";
+let lastTimerScale = -1;
+let liteModeEnabled = false;
 
 const CATEGORY_META = {
   mixed: {
@@ -89,6 +98,9 @@ let selectedCategory = "mixed";
 
 
 function show(screen) {
+  if (visibleScreen === screen) return;
+
+  visibleScreen = screen;
   ["home", "nameGate", "waiting", "quizScreen", "countdownScreen", "tournamentBreakScreen", "game", "resultsScreen"]
     .forEach(id => $(id).classList.toggle("hidden", id !== screen));
 }
@@ -109,6 +121,8 @@ function returnToMenu() {
   localStorage.removeItem("foodAuctionSession");
   session = null;
   latestState = null;
+  visibleScreen = null;
+  lastPlayersSignature = "";
   quizSelections = { favorites: new Set(), dislikes: new Set() };
   autoJoinAttempted = false;
   pendingInviteCode = null;
@@ -264,6 +278,24 @@ function renderQuiz(state) {
 function renderPlayers(state) {
   const categoryMeta = CATEGORY_META[state.category] || CATEGORY_META.mixed;
   const isTournament = state.mode === "tournament";
+  const signature = JSON.stringify({
+    turn: state.turn,
+    passed: state.passed,
+    category: state.category,
+    players: state.players.map(player => ({
+      name: player.name,
+      budget: player.budget,
+      connected: player.connected,
+      isBot: player.isBot,
+      isYou: player.isYou,
+      inCurrentMatch: player.inCurrentMatch,
+      tournamentStats: player.tournamentStats,
+      items: player.items.map(item => [item.name, item.price])
+    }))
+  });
+
+  if (signature === lastPlayersSignature) return;
+  lastPlayersSignature = signature;
 
   $("playersGrid").innerHTML = state.players.map((player, index) => `
     <article class="card player ${index === state.turn ? "active" : ""} ${state.passed[index] ? "passed" : ""} ${isTournament && !player.inCurrentMatch ? "tournament-spectator" : ""}">
@@ -288,16 +320,40 @@ function renderPlayers(state) {
 }
 
 function animateTimer(state) {
-  cancelAnimationFrame(timerAnimation);
+  clearTimeout(timerAnimation);
+
+  const intervalMs = liteModeEnabled ? 500 : 200;
+  const duration = Math.max(1000, Number(state.turnDurationMs) || 10000);
 
   const update = () => {
     if (!latestState || latestState.status !== "playing" || !latestState.turnEndsAt) return;
+    if (document.visibilityState === "hidden") return;
+
     const remaining = Math.max(0, latestState.turnEndsAt - Date.now());
-    const seconds = (remaining / 1000).toFixed(1);
-    $("timerText").textContent = `${seconds.replace(".", ",")} s`;
-    $("timerBar").style.width = `${Math.max(0, Math.min(100, remaining / 100))}%`;
-    if (remaining > 0) timerAnimation = requestAnimationFrame(update);
+    const timerText = `${(remaining / 1000).toFixed(1).replace(".", ",")} s`;
+    const scale = Math.max(0, Math.min(1, remaining / duration));
+
+    if (timerText !== lastTimerText) {
+      lastTimerText = timerText;
+      $("timerText").textContent = timerText;
+    }
+
+    if (Math.abs(scale - lastTimerScale) > 0.005) {
+      lastTimerScale = scale;
+      $("timerBar").style.transform = `scaleX(${scale})`;
+    }
+
+    if (remaining > 0) {
+      timerAnimation = setTimeout(update, intervalMs);
+      return;
+    }
+
+    if (socket.connected && Date.now() - lastExpiredTimerSyncAt > 1200) {
+      lastExpiredTimerSyncAt = Date.now();
+      socket.emit("sync-state");
+    }
   };
+
   update();
 }
 
@@ -337,14 +393,20 @@ function renderCountdown(state) {
 
 function renderGame(state) {
   show("game");
-  $("gameCode").textContent = state.code;
+  const setText = (id, value) => {
+    const element = $(id);
+    const text = String(value ?? "");
+    if (element.textContent !== text) element.textContent = text;
+  };
+
+  setText("gameCode", state.code);
   const categoryMeta = CATEGORY_META[state.category] || CATEGORY_META.mixed;
-  $("gameCategoryBadge").textContent = `${categoryMeta.icon} ${categoryMeta.name}`;
-  $("roundLabel").textContent = `${categoryMeta.roundLabel} ${state.round + 1} z ${state.roundCount}`;
-  $("foodEmoji").textContent = state.currentItem?.emoji || "🍽️";
-  $("foodName").textContent = state.currentItem?.name || "";
-  $("currentBid").textContent = `${state.currentBid} 🪙`;
-  $("message").textContent = state.message;
+  setText("gameCategoryBadge", `${categoryMeta.icon} ${categoryMeta.name}`);
+  setText("roundLabel", `${categoryMeta.roundLabel} ${state.round + 1} z ${state.roundCount}`);
+  setText("foodEmoji", state.currentItem?.emoji || "🍽️");
+  setText("foodName", state.currentItem?.name || "");
+  setText("currentBid", `${state.currentBid} 🪙`);
+  setText("message", state.message);
 
   const me = state.players[state.viewerIndex];
   const isTournament = state.mode === "tournament";
@@ -352,10 +414,10 @@ function renderGame(state) {
   const matchNames = currentMatchPlayers.map(index => tournamentPlayerName(state, index));
   $("tournamentMatchBanner").classList.toggle("hidden", !isTournament);
   if (isTournament) $("tournamentMatchBanner").innerHTML = `<strong>🏆 ${state.tournament.stageLabel}</strong><span>${matchNames[0]} kontra ${matchNames[1]}</span>`;
-  $("mobileOwnMoney").textContent = `${me.budget} 🪙`;
+  setText("mobileOwnMoney", `${me.budget} 🪙`);
 
   const turnPlayer = state.players[state.turn];
-  $("turnLabel").textContent = turnPlayer ? `Ruch: ${turnPlayer.name}` : "Oczekiwanie";
+  setText("turnLabel", turnPlayer ? `Ruch: ${turnPlayer.name}` : "Oczekiwanie");
   $("bidAmount").min = state.currentBid + 1;
   $("bidAmount").placeholder = `Minimum ${state.currentBid + 1}`;
 
@@ -662,6 +724,51 @@ function updateOnlineStatus() {
   $("offlineBanner").classList.toggle("hidden", navigator.onLine);
 }
 
+function deviceShouldUseLiteMode() {
+  const narrowScreen = window.matchMedia("(max-width: 760px)").matches;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const lowCpu = Number(navigator.hardwareConcurrency || 8) <= 4;
+  const lowMemory = Number(navigator.deviceMemory || 8) <= 4;
+  const saveData = Boolean(navigator.connection?.saveData);
+
+  return narrowScreen || reducedMotion || lowCpu || lowMemory || saveData;
+}
+
+function applyPerformanceMode(enabled, persist = false) {
+  liteModeEnabled = Boolean(enabled);
+  document.body.classList.toggle("lite-mode", liteModeEnabled);
+
+  const button = $("performanceModeBtn");
+  button.setAttribute("aria-pressed", String(liteModeEnabled));
+  button.textContent = liteModeEnabled
+    ? "⚡ Tryb lekki: włączony"
+    : "✨ Tryb pełny: włączony";
+
+  if (persist) {
+    localStorage.setItem("arenaLiteMode", liteModeEnabled ? "1" : "0");
+  }
+
+  if (latestState?.status === "playing") animateTimer(latestState);
+}
+
+function initializePerformanceMode() {
+  const saved = localStorage.getItem("arenaLiteMode");
+  const enabled = saved === null ? deviceShouldUseLiteMode() : saved === "1";
+  applyPerformanceMode(enabled, false);
+}
+
+function requestFreshGameState() {
+  if (!socket.connected || !session?.code || !session?.playerToken) return;
+  socket.emit("sync-state");
+}
+
+function handleAppResume() {
+  if (document.visibilityState && document.visibilityState !== "visible") return;
+
+  setTimeout(requestFreshGameState, 120);
+  setTimeout(requestFreshGameState, 900);
+}
+
 function registerArenaServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
@@ -684,11 +791,21 @@ window.addEventListener("appinstalled", () => {
   toast("Aplikacja została zainstalowana.");
 });
 
-window.addEventListener("online", updateOnlineStatus);
+window.addEventListener("online", () => {
+  updateOnlineStatus();
+  requestFreshGameState();
+});
 window.addEventListener("offline", updateOnlineStatus);
+window.addEventListener("focus", handleAppResume);
+window.addEventListener("pageshow", handleAppResume);
+document.addEventListener("visibilitychange", handleAppResume);
 
 
 
+$("performanceModeBtn").addEventListener("click", () => {
+  applyPerformanceMode(!liteModeEnabled, true);
+  toast(liteModeEnabled ? "Włączono tryb lekki." : "Włączono pełne efekty.");
+});
 $("installAppBtn").addEventListener("click", installMobileApp);
 $("dismissInstallBtn").addEventListener("click", () => {
   localStorage.setItem("arenaInstallDismissedAt", String(Date.now()));
@@ -787,8 +904,13 @@ socket.on("game-error", ({ message }) => {
 socket.on("session-replaced", () => toast("Sesja została otwarta na innym urządzeniu."));
 socket.on("connect", () => {
   $("connection").textContent = "Połączono";
-  if (session?.code && session?.playerToken) socket.emit("reconnect-player", session);
-  else tryAutoJoinFromLink();
+
+  if (session?.code && session?.playerToken) {
+    socket.emit("reconnect-player", session);
+    setTimeout(requestFreshGameState, 350);
+  } else {
+    tryAutoJoinFromLink();
+  }
 });
 socket.on("disconnect", () => {
   $("connection").textContent = "Ponowne łączenie…";
@@ -802,6 +924,7 @@ if (roomFromLink && !session) {
 }
 toggleMode();
 selectCategory("mixed");
+initializePerformanceMode();
 updateOnlineStatus();
 updateInstallPanel();
 registerArenaServiceWorker();

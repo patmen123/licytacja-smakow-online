@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "aukcyjna-arena-v28";
+const CACHE_NAME = "aukcyjna-arena-v32";
 const APP_SHELL = [
   "/",
   "/index.html",
